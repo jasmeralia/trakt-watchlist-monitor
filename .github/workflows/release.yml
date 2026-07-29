@@ -50,5 +50,5 @@ jobs:
           context: .
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}:${{ steps.tag.outputs.docker_tag }}
-            ghcr.io/${{ github.repository }}:latest
+            ghcr.io/${{ github.repository_owner }}/trakt-watchlist-monitor:${{ steps.tag.outputs.docker_tag }}
+            ghcr.io/${{ github.repository_owner }}/trakt-watchlist-monitor:latest
