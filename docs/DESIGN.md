@@ -103,11 +103,11 @@ The recommended deployment method is Docker with two bind mounts:
 
 ```bash
 docker run -d \
-  --name trakt_watchlist_monitor \
+  --name trakt-watchlist-monitor \
   --restart unless-stopped \
   -v "$(pwd)/.env:/app/.env:ro" \
   -v trakt_data:/data \
-  ghcr.io/jasmeralia/trakt_watchlist_monitor:latest
+  ghcr.io/jasmeralia/trakt-watchlist-monitor:latest
 ```
 
 - `.env` is mounted read-only at `/app/.env` — the app never writes to it

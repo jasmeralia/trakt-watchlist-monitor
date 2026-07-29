@@ -1,6 +1,6 @@
-# trakt_watchlist_monitor
+# Trakt Watchlist Monitor
 
-[![CI](https://github.com/jasmeralia/trakt_watchlist_monitor/actions/workflows/ci.yml/badge.svg)](https://github.com/jasmeralia/trakt_watchlist_monitor/actions/workflows/ci.yml)
+[![CI](https://github.com/jasmeralia/trakt-watchlist-monitor/actions/workflows/ci.yml/badge.svg)](https://github.com/jasmeralia/trakt-watchlist-monitor/actions/workflows/ci.yml)
 
 A self-hosted service that monitors your [Trakt](https://trakt.tv) watchlist for Amazon Prime Video
 buy-price discounts and emails you when a watched item drops below your configured threshold.
@@ -104,21 +104,21 @@ $EDITOR .env
 
 ```bash
 docker run -d \
-  --name trakt_watchlist_monitor \
+  --name trakt-watchlist-monitor \
   --restart unless-stopped \
   -v "$(pwd)/.env:/app/.env:ro" \
   -v trakt_data:/data \
-  ghcr.io/jasmeralia/trakt_watchlist_monitor:latest
+  ghcr.io/jasmeralia/trakt-watchlist-monitor:latest
 ```
 
 - `.env` is mounted read-only — the container never modifies it
 - `trakt_data` is a named Docker volume where price history persists between restarts
-- View logs: `docker logs trakt_watchlist_monitor`
+- View logs: `docker logs trakt-watchlist-monitor`
 
 To pin a specific release:
 
 ```bash
-docker pull ghcr.io/jasmeralia/trakt_watchlist_monitor:1.2.3
+docker pull ghcr.io/jasmeralia/trakt-watchlist-monitor:1.2.3
 ```
 
 ## Running Locally
