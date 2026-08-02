@@ -130,6 +130,30 @@ make venv
 cd app && python main.py
 ```
 
+## Scripts
+
+`scripts/add_trakt_collection.py` manually adds or re-tags a single movie or episode in your
+Trakt collection with full metadata (media type, resolution, audio, audio channels, HDR, 3D) —
+useful when Sonarr (or another tool) fails to auto-add an item with the correct tags. It reads
+Trakt credentials from the same `.env` used by the rest of this project.
+
+```bash
+make venv
+
+# preview only, nothing sent
+.venv/bin/python scripts/add_trakt_collection.py \
+  --url "https://app.trakt.tv/movies/nobody-2021" \
+  --resolution uhd_4k --audio dolby_atmos --audio-channels 7.1 --hdr dolby_vision
+
+# check current collection metadata, no changes
+.venv/bin/python scripts/add_trakt_collection.py --url "..." --check-only
+
+# actually write it
+.venv/bin/python scripts/add_trakt_collection.py --url "..." --resolution uhd_4k --commit
+```
+
+Run `.venv/bin/python scripts/add_trakt_collection.py --help` for the full option list.
+
 ## Development
 
 ```bash

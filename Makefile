@@ -15,13 +15,13 @@ PYTEST := $(VENV)/bin/pytest
 venv: .venv/bin/activate
 
 lintfix: .venv/bin/activate
-	$(RUFF) check --fix app/ tests/
-	$(RUFF) format app/ tests/
+	$(RUFF) check --fix app/ tests/ scripts/
+	$(RUFF) format app/ tests/ scripts/
 
 lint: .venv/bin/activate
-	$(RUFF) check app/ tests/
-	$(MYPY) app/
-	$(PYLINT) app/
+	$(RUFF) check app/ tests/ scripts/
+	$(MYPY) app/ scripts/
+	$(PYLINT) app/ scripts/
 	@if find . -maxdepth 3 -name "*.sh" | grep -q .; then \
 	  find . -maxdepth 3 -name "*.sh" -exec shellcheck {} +; \
 	fi
