@@ -1,7 +1,7 @@
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-src = ["app", "tests"]
+src = ["app", "tests", "scripts"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B"]
@@ -10,9 +10,11 @@ select = ["E", "F", "W", "I", "UP", "B"]
 python_version = "3.12"
 strict = true
 ignore_missing_imports = true
+mypy_path = "app"
 
 [tool.pylint.main]
 py-version = "3.12"
+source-roots = ["app", "scripts"]
 
 [tool.pylint.format]
 max-line-length = 100
