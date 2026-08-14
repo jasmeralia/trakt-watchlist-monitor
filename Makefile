@@ -28,7 +28,7 @@ lint: .venv/bin/activate
 	@if [ -f Dockerfile ]; then hadolint Dockerfile; fi
 
 test: .venv/bin/activate
-	$(PYTEST) tests/ -v --tb=short
+	$(PYTEST) tests/ -v --tb=short --cov=app --cov-report=term-missing --cov-report=xml:coverage.xml
 
 clean:
 	rm -rf $(VENV) __pycache__ .mypy_cache .pytest_cache .ruff_cache

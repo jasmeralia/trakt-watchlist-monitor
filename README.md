@@ -160,7 +160,7 @@ Run `.venv/bin/python scripts/add_trakt_collection.py --help` for the full optio
 make venv       # create .venv and install all dependencies (including dev tools)
 make lintfix   # auto-fix formatting and import order with ruff
 make lint       # ruff + mypy + pylint + shellcheck + hadolint
-make test       # run pytest
+make test       # run pytest and write coverage.xml for Codecov
 make clean      # remove .venv and all caches
 ```
 
