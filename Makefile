@@ -8,7 +8,7 @@ PYTEST := $(VENV)/bin/pytest
 .PHONY: venv lintfix lint test clean
 
 .venv/bin/activate: requirements.txt requirements-dev.txt
-	python3 -m venv $(VENV)
+	python3 -m venv --clear $(VENV)
 	$(PIP) install --upgrade pip
 	$(PIP) install -r requirements.txt -r requirements-dev.txt
 
