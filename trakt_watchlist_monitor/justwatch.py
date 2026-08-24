@@ -4,7 +4,7 @@ from typing import Any
 
 import requests
 
-import rate_limit
+from . import rate_limit
 
 GRAPHQL_URL = "https://apis.justwatch.com/graphql"
 # "amazon" is the verified technicalName for Amazon buy/rent offers.

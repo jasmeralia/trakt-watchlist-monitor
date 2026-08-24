@@ -1,8 +1,4 @@
 import os
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).parent.parent / "app"))
 
 os.environ.setdefault("TRAKT_CLIENT_ID", "client-id")
 os.environ.setdefault("TRAKT_CLIENT_SECRET", "client-secret")

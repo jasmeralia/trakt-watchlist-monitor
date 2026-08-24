@@ -4,8 +4,8 @@ from typing import Any
 
 import requests
 
-import rate_limit
-from config import settings
+from . import rate_limit
+from .config import settings
 
 BASE_URL = "https://api.trakt.tv"
 PAGE_LIMIT = 100

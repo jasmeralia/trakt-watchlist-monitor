@@ -13,30 +13,30 @@ currency key, SMTP_SSL, season support) are explicitly out of scope here.
 
 ## Checklist
 
-- [x] **main-loop-resilience** `app/main.py`: Wrap the body of the `while True` loop in a
+- [x] **main-loop-resilience** `trakt_watchlist_monitor/main.py`: Wrap the body of the `while True` loop in a
   `try/except Exception` that logs the error to stderr and sleeps before retrying, so a
   transient Trakt failure or DB open error does not kill the service permanently.
 
-- [x] **smtp-timeout** `app/notify.py`: Pass a `timeout` argument (e.g. `30`) to
+- [x] **smtp-timeout** `trakt_watchlist_monitor/notify.py`: Pass a `timeout` argument (e.g. `30`) to
   `smtplib.SMTP()` so a stalled server cannot block the monitoring loop indefinitely.
 
-- [x] **graphql-errors** `app/justwatch.py`: After `response.raise_for_status()`, inspect
+- [x] **graphql-errors** `trakt_watchlist_monitor/justwatch.py`: After `response.raise_for_status()`, inspect
   the parsed JSON for a top-level `"errors"` key. If present, log the first error message
   to stderr and return `[]` rather than silently falling through as if no offers were found.
 
-- [x] **price-parse-locale** `app/justwatch.py`: Fix `_parse_price()` so that
+- [x] **price-parse-locale** `trakt_watchlist_monitor/justwatch.py`: Fix `_parse_price()` so that
   comma-decimal strings like `"€9,99"` and thousands-separator strings like `"1,299.00"`
   do not produce bogus numbers. The correct approach: strip all non-digit, non-period, and
   non-comma characters, replace any comma that acts as a decimal separator (rightmost
   comma followed by exactly two digits at end of string) with a period, then remove
   remaining commas, and parse the result. Add tests for both formats.
 
-- [x] **zero-division-guard** `app/pricing.py`: Guard against `last_price == 0.0` in the
+- [x] **zero-division-guard** `trakt_watchlist_monitor/pricing.py`: Guard against `last_price == 0.0` in the
   discount-percentage calculation inside `check_prices()`. If `last_price` is zero, skip
   the notification logic (a zero baseline is not a meaningful reference price) and still
   call `upsert_price`.
 
-- [x] **upsert-after-alert** `app/pricing.py` + `tests/test_pricing.py`: The critical bug:
+- [x] **upsert-after-alert** `trakt_watchlist_monitor/pricing.py` + `tests/test_pricing.py`: The critical bug:
   when the threshold is met and alert sending fails, `upsert_price` still runs, permanently
   preventing future re-alerts. Fix: only call `upsert_price` when the alert was either
   (a) sent successfully, or (b) not required (below threshold, first observation, price
@@ -44,15 +44,15 @@ currency key, SMTP_SSL, season support) are explicitly out of scope here.
   next run retries. Update the notify-failure test to assert that `upsert_price` is NOT
   called when send fails.
 
-- [x] **season-log** `app/trakt.py`: In `_normalize_watchlist_item()`, add an explicit
+- [x] **season-log** `trakt_watchlist_monitor/trakt.py`: In `_normalize_watchlist_item()`, add an explicit
   `elif item["type"] not in {"movie", "show"}` branch that logs the unsupported type to
   stderr and returns `None`, rather than falling through silently.
 
-- [x] **select-cheapest-quality** `app/pricing.py` `select_best_quality()`: When multiple
+- [x] **select-cheapest-quality** `trakt_watchlist_monitor/pricing.py` `select_best_quality()`: When multiple
   offers share the same quality tier, select the one with the lowest price rather than the
   first encountered. Update or add a test for this case.
 
-- [x] **currency-guard** `app/pricing.py`: After extracting the currency from the best-price
+- [x] **currency-guard** `trakt_watchlist_monitor/pricing.py`: After extracting the currency from the best-price
   offer inside `check_prices()`, check whether it equals `"USD"`. If not, log a warning to
   stderr (`f"Unexpected currency {currency!r} for trakt_id {trakt_id}; skipping"`) and
   `continue` to the next item. This prevents a future currency switch from causing a
@@ -60,18 +60,18 @@ currency key, SMTP_SSL, season support) are explicitly out of scope here.
   pricing.py — no new config field). Add a test asserting that a non-USD offer skips
   `upsert_price` and logs to stderr.
 
-- [x] **token-persistence** `app/trakt.py` + `app/config.py`: After a successful Trakt token
+- [x] **token-persistence** `trakt_watchlist_monitor/trakt.py` + `trakt_watchlist_monitor/config.py`: After a successful Trakt token
   refresh in `refresh_token()`, write the new access and refresh tokens to a file at
   `os.path.join(os.path.dirname(settings.db_path), "tokens.env")` (e.g. `/data/tokens.env`
   alongside the DB). Write only two lines: `TRAKT_ACCESS_TOKEN=<value>` and
   `TRAKT_REFRESH_TOKEN=<value>`. Wrap the write in a non-fatal `try/except OSError` that logs
-  to stderr if it fails. In `app/config.py`, extend `env_file` from `".env"` to the tuple
+  to stderr if it fails. In `trakt_watchlist_monitor/config.py`, extend `env_file` from `".env"` to the tuple
   `(".env", "/data/tokens.env")` so that persisted tokens are loaded on the next restart
   (pydantic-settings silently skips missing files). Do not add any new Settings fields. Add a
   test to `tests/test_trakt.py` verifying that after a 401 refresh, the token file is written
   with the new values.
 
-- [x] **smtp-ssl** `app/notify.py`: If `settings.smtp_port == 465`, use
+- [x] **smtp-ssl** `trakt_watchlist_monitor/notify.py`: If `settings.smtp_port == 465`, use
   `smtplib.SMTP_SSL(settings.smtp_host, settings.smtp_port, timeout=30)` and skip the
   `starttls()` call. For all other ports keep the existing `smtplib.SMTP(..., timeout=30)`
   + `starttls()` path. No new config fields. Update or add tests to cover both branches.

@@ -33,7 +33,7 @@ def notify_module(monkeypatch: pytest.MonkeyPatch) -> object:
     monkeypatch.setenv("SMTP_FROM", "sender@example.com")
     monkeypatch.setenv("SMTP_TO", "recipient@example.com")
 
-    import notify
+    from trakt_watchlist_monitor import notify
 
     return notify
 

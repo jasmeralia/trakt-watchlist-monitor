@@ -1,6 +1,6 @@
 import sqlite3
 
-from db import (
+from trakt_watchlist_monitor.db import (
     get_last_price,
     init_db,
     log_notification,

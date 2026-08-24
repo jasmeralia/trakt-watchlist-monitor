@@ -1,10 +1,11 @@
+import argparse
 import logging
 import time
 from pathlib import Path
 
-import db
-from config import settings
-from pricing import check_prices
+from . import db
+from .config import settings
+from .pricing import check_prices
 
 logger = logging.getLogger(__name__)
 
@@ -28,25 +29,39 @@ def _maybe_reset_alerts() -> None:
     )
 
 
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Trakt watchlist price monitor")
+    parser.add_argument(
+        "--once",
+        action="store_true",
+        help="Run a single monitoring cycle and exit instead of looping forever",
+    )
+    return parser.parse_args()
+
+
+def _run_cycle() -> None:
+    logger.info("Starting monitoring cycle")
+    _maybe_reset_alerts()
+    check_prices()
+    logger.info("Monitoring cycle complete")
+
+
 def main() -> None:
+    args = _parse_args()
     logging.basicConfig(
         level=getattr(logging, settings.log_level),
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
+
+    if args.once or settings.run_once:
+        _run_cycle()
+        return
+
     while True:
         try:
-            logger.info("Starting monitoring cycle")
-            _maybe_reset_alerts()
-            check_prices()
-            logger.info(
-                "Monitoring cycle complete; sleeping for %.2f hours",
-                settings.check_interval_hours,
-            )
+            _run_cycle()
+            logger.info("Sleeping for %.2f hours", settings.check_interval_hours)
             time.sleep(settings.check_interval_hours * 3600)
         except Exception:  # pylint: disable=broad-exception-caught
             logging.exception("Monitoring loop failed")
             time.sleep(settings.check_interval_hours * 3600)
-
-
-if __name__ == "__main__":
-    main()

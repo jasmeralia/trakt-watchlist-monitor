@@ -1,7 +1,6 @@
 import pytest
 from pydantic import ValidationError
-
-from config import Settings
+from trakt_watchlist_monitor.config import Settings
 
 
 def test_log_level_defaults_to_info() -> None:
@@ -31,6 +30,10 @@ def test_log_level_rejects_unknown_value() -> None:
 
 def test_check_interval_hours_defaults_to_six() -> None:
     assert _settings().check_interval_hours == 6.0
+
+
+def test_run_once_defaults_to_false() -> None:
+    assert _settings().run_once is False
 
 
 def _settings(**overrides: object) -> Settings:

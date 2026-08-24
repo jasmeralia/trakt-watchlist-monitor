@@ -17,8 +17,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v7
+      - uses: astral-sh/setup-uv@v6
         with:
+          enable-cache: true
           python-version: "3.12"
 
       - name: Install system linters
@@ -27,13 +28,6 @@ jobs:
             "https://github.com/hadolint/hadolint/releases/latest/download/hadolint-Linux-x86_64"
           chmod +x /usr/local/bin/hadolint
           sudo apt-get install -y shellcheck
-
-      - name: Cache venv
-        uses: actions/cache@v6
-        with:
-          path: .venv
-          key: venv-${{ runner.os }}-${{ hashFiles('requirements*.txt') }}
-          restore-keys: venv-${{ runner.os }}-
 
       - name: Install dependencies
         run: make venv

@@ -1,3 +1,4 @@
+import os
 from typing import Literal, cast
 
 from pydantic import Field, field_validator
@@ -5,11 +6,24 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 LogLevel = Literal["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG", "NOTSET"]
 _LOG_LEVELS = {"CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG", "NOTSET"}
+_DEFAULT_DB_PATH = "/data/prices.db"
+
+
+def _tokens_env_path() -> str:
+    """Locate tokens.env next to the configured database, wherever that is.
+
+    Read directly from the process environment (rather than a Settings field)
+    because this path is needed to build the env_file tuple below, before any
+    Settings instance exists. Docker mounts the DB at /data; native-cron
+    deployments set DB_PATH to a different directory via a sourced .env file.
+    """
+    db_path = os.environ.get("DB_PATH", _DEFAULT_DB_PATH)
+    return os.path.join(os.path.dirname(db_path) or ".", "tokens.env")
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=(".env", "/data/tokens.env"), env_file_encoding="utf-8"
+        env_file=(".env", _tokens_env_path()), env_file_encoding="utf-8"
     )
 
     trakt_client_id: str
@@ -30,10 +44,11 @@ class Settings(BaseSettings):
     sale_list_slug: str = ""
     check_interval_hours: float = Field(default=6.0, gt=0)
     api_request_interval_seconds: float = Field(default=1.5, ge=0)
-    db_path: str = "/data/prices.db"
+    db_path: str = _DEFAULT_DB_PATH
     log_level: LogLevel = "INFO"
     email_theme: str = "dark"
     app_version: str = ""
+    run_once: bool = False
 
     @field_validator("email_theme", mode="before")
     @classmethod
