@@ -2,8 +2,8 @@
 
 Useful when Sonarr (or any other tool) fails to auto-add an item with the
 correct metadata tags -- something the Trakt website no longer lets you fix
-manually. Credentials are read via app/trakt.py, which reads the same .env
-file as the rest of this project (see app/config.py).
+manually. Credentials are read via trakt_watchlist_monitor/trakt.py, which reads
+the same .env file as the rest of this project (see trakt_watchlist_monitor/config.py).
 
 Usage:
     # preview only, nothing sent
@@ -27,9 +27,9 @@ from typing import Any
 
 import requests
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "app"))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import trakt  # noqa: E402  pylint: disable=wrong-import-position
+from trakt_watchlist_monitor import trakt  # noqa: E402  pylint: disable=wrong-import-position
 
 MEDIA_TYPES = ("digital", "bluray", "hddvd", "dvd", "vcd", "vhs", "betamax", "laserdisc")
 RESOLUTIONS = (

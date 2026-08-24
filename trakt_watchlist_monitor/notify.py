@@ -5,10 +5,10 @@ from typing import TYPE_CHECKING, Any
 
 from jinja2 import Environment, FileSystemLoader
 
-from config import settings
+from .config import settings
 
 if TYPE_CHECKING:
-    from pricing import PriceDrop
+    from .pricing import PriceDrop
 
 _TEMPLATE_DIR = Path(__file__).parent / "templates"
 

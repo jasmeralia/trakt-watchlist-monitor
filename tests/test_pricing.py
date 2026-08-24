@@ -2,9 +2,8 @@ import smtplib
 from unittest.mock import Mock
 
 import pytest
-
-import pricing
-from pricing import meets_discount_threshold, select_best_quality
+from trakt_watchlist_monitor import pricing
+from trakt_watchlist_monitor.pricing import meets_discount_threshold, select_best_quality
 
 
 class FakeConnection:

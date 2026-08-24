@@ -18,7 +18,8 @@ All three must pass before the task is considered complete.
 ## Configuration
 
 - Never use `os.getenv` directly in application code.
-- All configuration must be accessed via `from config import settings` (see `app/config.py`).
+- All configuration must be accessed via `from .config import settings` (see
+  `trakt_watchlist_monitor/config.py`).
 - Never commit `.env` files. Use `.env.example` as the documentation template.
 
 ## Code Style

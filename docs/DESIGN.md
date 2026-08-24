@@ -2,7 +2,7 @@
 
 ## Purpose
 
-A long-running Python service that:
+A Python service that runs continuously or as a single cron-invoked cycle and:
 1. Fetches a user's Trakt watchlist (movies and TV show seasons)
 2. Excludes items already in their Trakt collection
 3. Looks up Amazon Prime Video buy prices for those items via JustWatch
@@ -36,7 +36,7 @@ A long-running Python service that:
 | `pricing.py` | Quality-tier selection (UHD > HD > SD), discount threshold evaluation, orchestration |
 | `db.py` | SQLite persistence: price history schema, read/write helpers, notification log |
 | `notify.py` | SMTP email alerts via `smtplib` (Gmail App Password supported) |
-| `main.py` | Entry point: runs `check_prices()` in a loop at `CHECK_INTERVAL_HOURS` interval |
+| `main.py` | Entry point: runs `check_prices()` continuously, or once with `--once`/`RUN_ONCE` |
 
 ## Configuration Schema
 
@@ -57,10 +57,11 @@ See `.env.example` for a template.
 | `SMTP_FROM` | str | — | Yes | Sender email address |
 | `SMTP_TO` | str | — | Yes | Recipient email address |
 | `DISCOUNT_THRESHOLD_PERCENT` | float | 20.0 | No | Minimum % price drop to trigger notification |
-| `CHECK_INTERVAL_HOURS` | float | 24.0 | No | Hours between price checks |
+| `CHECK_INTERVAL_HOURS` | float | 6.0 | No | Hours between price checks |
 | `API_REQUEST_INTERVAL_SECONDS` | float | 1.5 | No | Minimum delay between external API requests |
 | `DB_PATH` | str | /data/prices.db | No | SQLite database file path |
 | `LOG_LEVEL` | str | INFO | No | Logging verbosity: CRITICAL, ERROR, WARNING, INFO, DEBUG, or NOTSET |
+| `RUN_ONCE` | bool | false | No | Run a single check cycle and exit instead of looping (also settable via `--once`) |
 
 ## SQLite Schema
 
@@ -114,6 +115,15 @@ docker run -d \
 - `/data` is a named volume where SQLite persists price history between container restarts
 - The container runs as a non-root user (`appuser`, uid 1001)
 
+## Native Cron Deployment
+
+For schedulers such as a native TrueNAS cron job, sync the uv environment and invoke one cycle:
+
+```bash
+uv sync --locked
+uv run python -m trakt_watchlist_monitor --once
+```
+
 ## Quality-Tier Priority
 
 When multiple buy-price tiers are available for the same item, only the highest available quality
@@ -143,7 +153,7 @@ After notifying, the new (lower) price is written to `price_history`.
 ## Development Workflow
 
 ```bash
-make venv       # create .venv and install all dependencies
+make venv       # sync the uv-managed .venv and install all dependencies
 make lintfix   # auto-fix ruff style/import issues
 make lint       # ruff + mypy + pylint + shellcheck + hadolint
 make test       # pytest

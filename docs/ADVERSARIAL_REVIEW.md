@@ -6,7 +6,7 @@ Reviewed on 2026-05-15. All five application modules plus the test suite.
 
 ## Critical — silent wrong results or data loss
 
-**`app/pricing.py` ~line 67 — SMTP failure permanently silences future alerts**
+**`trakt_watchlist_monitor/pricing.py` ~line 67 — SMTP failure permanently silences future alerts**
 
 When `notify.send_alert()` raises `SMTPException`, the `except` branch logs and
 continues — but `db.upsert_price()` on line 78 still runs, writing the new lower
@@ -18,7 +18,7 @@ even lower.
 `tests/test_pricing.py` (notify-failure test) asserts this as correct behavior — the
 bug is encoded into the expected output.
 
-**`app/db.py` line 84 — `was_notified()` semantics suppress deeper discounts**
+**`trakt_watchlist_monitor/db.py` line 84 — `was_notified()` semantics suppress deeper discounts**
 
 The predicate `price >= ?` (comparing the current price to the stored notification
 price) returns `True` when the current price is at or below the previously notified
@@ -34,7 +34,7 @@ literally.
 
 ## High — crashes or missed alerts on real inputs
 
-**`app/trakt.py` — Refresh token never persisted to disk**
+**`trakt_watchlist_monitor/trakt.py` — Refresh token never persisted to disk**
 
 `refresh_token()` mutates the in-memory `settings` object but never writes the new
 tokens back to `.env` or any persistent store. Trakt rotates refresh tokens on use.
@@ -44,7 +44,7 @@ watchlists permanently.
 
 `tests/test_trakt.py` verifies only the in-memory mutation.
 
-**`app/main.py` — Top-level exception kills the service permanently**
+**`trakt_watchlist_monitor/main.py` — Top-level exception kills the service permanently**
 
 If `check_prices()` raises (SQLite cannot open `/data/prices.db`, Trakt returns 5xx
 before the item loop starts, etc.), the exception propagates out of the `while True`
@@ -53,7 +53,7 @@ sleep through transient failures.
 
 No test covers this path.
 
-**`app/trakt.py` `_normalize_watchlist_item()` — Season entries silently dropped**
+**`trakt_watchlist_monitor/trakt.py` `_normalize_watchlist_item()` — Season entries silently dropped**
 
 The function branches on `item["type"] == "movie"` / `"show"`, but the Trakt API
 also returns `type == "season"` for season-level watchlist entries. The design doc
@@ -66,7 +66,7 @@ No test covers a season-typed API response.
 
 ## Medium — behavioral gaps, untested edge cases
 
-**`app/pricing.py` `select_best_quality()` — cheapest same-quality offer not selected**
+**`trakt_watchlist_monitor/pricing.py` `select_best_quality()` — cheapest same-quality offer not selected**
 
 JustWatch can return two HD buy offers for the same item at different prices (e.g.,
 $12.99 and $7.99). `select_best_quality()` sorts only by quality tier and takes the
@@ -75,7 +75,7 @@ threshold checks to fail against an inflated baseline.
 
 No test covers duplicate quality entries.
 
-**`app/db.py` — Currency not part of the price lookup key**
+**`trakt_watchlist_monitor/db.py` — Currency not part of the price lookup key**
 
 `price_history` stores `currency` but `get_last_price()` returns only the numeric
 value with no currency column. If a title's JustWatch offer switches currency (e.g.,
@@ -84,7 +84,7 @@ comparison treats £7.99 as a discount off $9.99 and fires a false alert.
 
 No test covers cross-currency comparisons.
 
-**`app/justwatch.py` `_parse_price()` — Locale-formatted prices yield bogus numbers**
+**`trakt_watchlist_monitor/justwatch.py` `_parse_price()` — Locale-formatted prices yield bogus numbers**
 
 The regex `r"\d+(?:\.\d+)?"` extracts the first numeric sequence. For
 `"€9,99"` (comma-decimal locale) it returns `9`; for `"1,299.00"` (thousands
@@ -93,7 +93,7 @@ a false alert.
 
 No test covers comma-decimal or thousands-separator formats.
 
-**`app/justwatch.py` — GraphQL `"errors"` array silently treated as empty result**
+**`trakt_watchlist_monitor/justwatch.py` — GraphQL `"errors"` array silently treated as empty result**
 
 A partial JustWatch response (e.g., schema error, rate limit) may include an
 `"errors"` key alongside `"data": null`. The code checks only for `data.node`
@@ -102,7 +102,7 @@ Amazon offer found." The upstream error is never logged.
 
 No test covers a response with an `"errors"` key.
 
-**`app/notify.py` — STARTTLS hardcoded; port 465 / implicit TLS fails silently**
+**`trakt_watchlist_monitor/notify.py` — STARTTLS hardcoded; port 465 / implicit TLS fails silently**
 
 `smtplib.SMTP()` followed by `starttls()` is only correct for STARTTLS on port 587.
 Port 465 (implicit TLS) requires `smtplib.SMTP_SSL()`. A user who sets
@@ -112,13 +112,13 @@ only.
 
 No test covers this path.
 
-**`app/notify.py` — No SMTP socket timeout**
+**`trakt_watchlist_monitor/notify.py` — No SMTP socket timeout**
 
 `smtplib.SMTP()` is called without a `timeout` argument. A server that accepts
 the TCP connection but stalls will block `send_alert()` indefinitely, freezing
 the entire monitoring loop for that poll cycle.
 
-**`app/pricing.py` `meets_discount_threshold()` — ZeroDivisionError on $0.00 baseline**
+**`trakt_watchlist_monitor/pricing.py` `meets_discount_threshold()` — ZeroDivisionError on $0.00 baseline**
 
 If JustWatch returns a buy price of `0.0` (e.g., a temporary free promotion) and
 that gets stored as `last_price`, the next run divides by zero inside the discount

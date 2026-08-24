@@ -3,9 +3,8 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-
-import trakt
-from config import settings
+from trakt_watchlist_monitor import trakt
+from trakt_watchlist_monitor.config import settings
 
 
 class FakeResponse:

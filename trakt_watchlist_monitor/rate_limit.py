@@ -1,6 +1,6 @@
 import time
 
-from config import settings
+from .config import settings
 
 _LAST_REQUEST_AT: float | None = None
 

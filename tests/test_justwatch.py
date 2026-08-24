@@ -2,8 +2,7 @@ from collections.abc import Callable
 from typing import Any
 
 import pytest
-
-import justwatch
+from trakt_watchlist_monitor import justwatch
 
 
 class FakeResponse:

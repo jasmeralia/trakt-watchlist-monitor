@@ -7,11 +7,8 @@ import sys
 from dataclasses import dataclass
 from typing import Any
 
-import db
-import justwatch
-import notify
-import trakt
-from config import settings
+from . import db, justwatch, notify, trakt
+from .config import settings
 
 logger = logging.getLogger(__name__)
 

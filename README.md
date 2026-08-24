@@ -18,7 +18,8 @@ Only the highest available quality tier is tracked per item (UHD preferred over 
 ## Prerequisites
 
 - A [Trakt](https://trakt.tv) account with a watchlist and collection
-- Docker (for the recommended deployment method), or Python 3.12+
+- Docker (for the recommended deployment method), or Python 3.12+ with
+  [uv](https://docs.astral.sh/uv/) installed
 - An email account with SMTP access (Gmail is supported)
 
 ## Obtaining API Keys
@@ -95,10 +96,11 @@ $EDITOR .env
 | `SMTP_FROM` | Yes | — | Sender email address |
 | `SMTP_TO` | Yes | — | Recipient email address |
 | `DISCOUNT_THRESHOLD_PERCENT` | No | `20.0` | Minimum % price drop to trigger a notification |
-| `CHECK_INTERVAL_HOURS` | No | `24.0` | Hours between price checks |
+| `CHECK_INTERVAL_HOURS` | No | `6.0` | Hours between price checks |
 | `API_REQUEST_INTERVAL_SECONDS` | No | `1.5` | Minimum delay between external API requests |
 | `DB_PATH` | No | `/data/prices.db` | SQLite database path (inside container) |
 | `LOG_LEVEL` | No | `INFO` | Logging verbosity: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG`, or `NOTSET` |
+| `RUN_ONCE` | No | `false` | Run a single check cycle and exit instead of looping (also settable via `--once`) |
 
 ## Running with Docker
 
@@ -127,7 +129,7 @@ docker pull ghcr.io/jasmeralia/trakt-watchlist-monitor:1.2.3
 cp .env.example .env
 $EDITOR .env
 make venv
-cd app && python main.py
+uv run python -m trakt_watchlist_monitor
 ```
 
 ## Scripts
@@ -141,23 +143,23 @@ Trakt credentials from the same `.env` used by the rest of this project.
 make venv
 
 # preview only, nothing sent
-.venv/bin/python scripts/add_trakt_collection.py \
+uv run python scripts/add_trakt_collection.py \
   --url "https://app.trakt.tv/movies/nobody-2021" \
   --resolution uhd_4k --audio dolby_atmos --audio-channels 7.1 --hdr dolby_vision
 
 # check current collection metadata, no changes
-.venv/bin/python scripts/add_trakt_collection.py --url "..." --check-only
+uv run python scripts/add_trakt_collection.py --url "..." --check-only
 
 # actually write it
-.venv/bin/python scripts/add_trakt_collection.py --url "..." --resolution uhd_4k --commit
+uv run python scripts/add_trakt_collection.py --url "..." --resolution uhd_4k --commit
 ```
 
-Run `.venv/bin/python scripts/add_trakt_collection.py --help` for the full option list.
+Run `uv run python scripts/add_trakt_collection.py --help` for the full option list.
 
 ## Development
 
 ```bash
-make venv       # create .venv and install all dependencies (including dev tools)
+make venv       # sync the uv-managed .venv, including development dependencies
 make lintfix   # auto-fix formatting and import order with ruff
 make lint       # ruff + mypy + pylint + shellcheck + hadolint
 make test       # run pytest and write coverage.xml for Codecov
