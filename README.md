@@ -156,6 +156,21 @@ uv run python scripts/add_trakt_collection.py --url "..." --resolution uhd_4k --
 
 Run `uv run python scripts/add_trakt_collection.py --help` for the full option list.
 
+For a reviewed CSV of movies, `scripts/add_trakt_collection_batch.py` verifies each Trakt ID,
+checks that none are already collected, then submits and verifies the batch. The CSV must contain
+`amazon_title`, `amazon_url`, `trakt_title`, `trakt_year`, `trakt_id`, and `trakt_slug`. It previews
+by default; `--commit` writes the batch, and `--force` skips the confirmation prompt when used
+with `--commit`. Its defaults match the single-item PowerShell utility (`digital`, `hd_720p`,
+stereo `2.0` channels).
+
+```bash
+# Preview a reviewed list
+uv run python scripts/add_trakt_collection_batch.py --input reviewed-movies.csv
+
+# Add it after reviewing the preview
+uv run python scripts/add_trakt_collection_batch.py --input reviewed-movies.csv --commit
+```
+
 ## Development
 
 ```bash
