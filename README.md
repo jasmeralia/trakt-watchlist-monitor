@@ -33,7 +33,15 @@ Only the highest available quality tier is tracked per item (UHD preferred over 
    and click **Save App**
 4. Note your **Client ID** and **Client Secret** — these go into `.env` as
    `TRAKT_CLIENT_ID` and `TRAKT_CLIENT_SECRET`
-5. **Obtain OAuth tokens** using the device-code flow:
+5. **Obtain OAuth tokens** using the helper script:
+
+   ```bash
+   uv run python scripts/authorize_trakt.py
+   ```
+
+   It opens Trakt's verification page, prints the code to enter, polls until approved,
+   then replaces `TRAKT_ACCESS_TOKEN` and `TRAKT_REFRESH_TOKEN` in `.env`. Keep the
+   terminal open while you approve it. The manual flow below is available if needed:
 
    ```bash
    # Step 1 — request a device code
