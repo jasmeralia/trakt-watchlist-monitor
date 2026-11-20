@@ -57,7 +57,7 @@ def test_load_targets_rejects_duplicate_trakt_ids(tmp_path):
         batch.load_targets(path)
 
 
-def test_build_payload_uses_power_shell_defaults():
+def test_build_payload_includes_uhd_resolution():
     target = batch.MovieTarget(
         amazon_title="Arrival",
         amazon_url="https://amazon.test/arrival",
@@ -68,11 +68,17 @@ def test_build_payload_uses_power_shell_defaults():
     )
 
     payload = batch.build_payload(
-        [target], media_type="digital", resolution="hd_720p", audio_channels="2.0"
+        [target], media_type="digital", resolution="uhd_4k", audio_channels="2.0"
     )
 
     assert len(payload["movies"]) == 1
     assert payload["movies"][0]["ids"] == {"trakt": 210803}
     assert payload["movies"][0]["media_type"] == "digital"
-    assert payload["movies"][0]["resolution"] == "hd_720p"
+    assert payload["movies"][0]["resolution"] == "uhd_4k"
     assert payload["movies"][0]["audio_channels"] == "2.0"
+
+
+def test_parse_args_defaults_to_uhd_resolution(tmp_path):
+    args = batch.parse_args(["--input", str(tmp_path / "movies.csv")])
+
+    assert args.resolution == "uhd_4k"
