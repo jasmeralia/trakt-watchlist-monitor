@@ -180,6 +180,32 @@ uv run python scripts/add_trakt_collection_batch.py --input reviewed-movies.csv
 uv run python scripts/add_trakt_collection_batch.py --input reviewed-movies.csv --commit
 ```
 
+For recurring full-library audits, `scripts/audit_amazon_trakt.py` reads an Amazon export with
+`Amazon title` and `Amazon URL` columns, searches Trakt, and compares candidates with your current
+movie collection. It creates JSON as the editable decision source and a generated Markdown report.
+Candidates are suggestions only; verify each match against the Amazon detail page before approving.
+The JSON supports multiple selected Trakt IDs for a multi-film bundle; `review_note` evidence is
+required before confirmed entries can be exported.
+
+```bash
+# Generate an audit
+uv run python scripts/audit_amazon_trakt.py \
+  --input amazon-library.csv \
+  --json amazon-audit.json \
+  --markdown amazon-audit.md
+
+# Re-run after a new export while preserving prior review decisions
+uv run python scripts/audit_amazon_trakt.py \
+  --input amazon-library.csv --previous amazon-audit.json \
+  --json amazon-audit.json --markdown amazon-audit.md
+
+# After reviewing the JSON, export only confirmed missing movies
+uv run python scripts/audit_amazon_trakt.py \
+  --export-reviewed amazon-audit.json --output reviewed-movies.csv
+```
+
+Pass the exported CSV to `add_trakt_collection_batch.py` for preview and collection updates.
+
 ## Development
 
 ```bash

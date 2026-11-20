@@ -55,12 +55,18 @@ PRs are squash-merged only. The repository owner is `@jasmeralia` (see `.github/
 
 ## Importing an Amazon Prime Video library into Trakt
 
-To compare an Amazon library export with a Trakt movie collection, generate a CSV with these
-columns: `amazon_title`, `amazon_url`, `trakt_title`, `trakt_year`, `trakt_id`, and `trakt_slug`.
-Keep each Amazon entry linked to the specific Trakt movie edition by checking the Amazon detail
-page's release year and synopsis against Trakt search results. Do not rely on title-only matches
-when remakes or duplicate Trakt records exist. Query the Trakt movie collection and exclude IDs
-already present; review unmatched titles separately rather than guessing.
+For recurring audits, run `scripts/audit_amazon_trakt.py` on an Amazon library export with
+`Amazon title` and `Amazon URL` columns. It creates an editable JSON decision file and a generated
+Markdown review. It searches Trakt and records candidate years, overviews, IDs, links, title
+similarity, and current collection membership. Treat search candidates as suggestions: compare the
+Amazon detail page's year and synopsis before selecting a movie, especially for remakes, bundles,
+or duplicate Trakt records. Preserve decisions between audits with `--previous`.
+
+In the JSON, set each reviewed item's `decision` to `add`, `already_collected`, `not_a_movie`, or
+`no_match`; for `add`, populate `selected_trakt_ids` with one or more candidate IDs (multiple IDs
+support multi-film bundles) and add a non-empty `review_note` describing the evidence. Export only approved
+missing movies to the existing batch-import CSV with `--export-reviewed`. Never infer matches from
+title similarity alone.
 
 Use `scripts/add_trakt_collection_batch.py --input <csv>` for a preview. It verifies every Trakt
 ID and slug and refuses to overwrite items already collected. Only after reviewing the preview,
