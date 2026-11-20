@@ -5,7 +5,12 @@ COPY --from=ghcr.io/astral-sh/uv:0.11.18 /uv /uvx /usr/local/bin/
 WORKDIR /app
 
 COPY pyproject.toml uv.lock ./
-RUN uv sync --locked --no-install-project --no-dev
+# hadolint ignore=DL3008
+RUN apt-get update \
+    && apt-get install --no-install-recommends -y build-essential \
+    && uv sync --locked --no-install-project --no-dev \
+    && apt-get purge -y --auto-remove build-essential \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY trakt_watchlist_monitor/ trakt_watchlist_monitor/
 
