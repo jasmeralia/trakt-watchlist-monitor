@@ -40,8 +40,10 @@ Only the highest available quality tier is tracked per item (UHD preferred over 
    ```
 
    It opens Trakt's verification page, prints the code to enter, polls until approved,
-   then replaces `TRAKT_ACCESS_TOKEN` and `TRAKT_REFRESH_TOKEN` in `.env`. Keep the
-   terminal open while you approve it. The manual flow below is available if needed:
+   then saves the tokens to `.env`, or to the existing `tokens.env` beside `DB_PATH`
+   when that runtime token store is present. It removes duplicate token entries from
+   `.env` in that case. Keep the terminal open while you approve it. The manual flow
+   below is available if needed:
 
    ```bash
    # Step 1 — request a device code
