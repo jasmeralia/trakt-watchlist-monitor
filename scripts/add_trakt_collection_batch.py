@@ -55,7 +55,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--resolution",
         choices=RESOLUTIONS,
-        default="hd_720p",
+        default="uhd_4k",
     )
     parser.add_argument("--media-type", default="digital", choices=MEDIA_TYPES)
     parser.add_argument("--audio-channels", default="2.0")

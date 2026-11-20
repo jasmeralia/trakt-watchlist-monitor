@@ -66,4 +66,4 @@ Use `scripts/add_trakt_collection_batch.py --input <csv>` for a preview. It veri
 ID and slug and refuses to overwrite items already collected. Only after reviewing the preview,
 run with `--commit` to add the batch; `--force` skips its confirmation prompt. The script uses the
 project `.env` settings, submits at most 100 movies per request, and verifies the resulting
-collection. Its default metadata is `digital`, `hd_720p`, and `2.0` audio channels.
+collection. Its default metadata is `digital`, `uhd_4k`, and `2.0` audio channels.

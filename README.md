@@ -160,8 +160,7 @@ For a reviewed CSV of movies, `scripts/add_trakt_collection_batch.py` verifies e
 checks that none are already collected, then submits and verifies the batch. The CSV must contain
 `amazon_title`, `amazon_url`, `trakt_title`, `trakt_year`, `trakt_id`, and `trakt_slug`. It previews
 by default; `--commit` writes the batch, and `--force` skips the confirmation prompt when used
-with `--commit`. Its defaults match the single-item PowerShell utility (`digital`, `hd_720p`,
-stereo `2.0` channels).
+with `--commit`. Its defaults are `digital`, `uhd_4k`, and stereo `2.0` channels.
 
 ```bash
 # Preview a reviewed list
