@@ -93,6 +93,100 @@ def test_get_watchlist_fetches_all_pages(monkeypatch: pytest.MonkeyPatch) -> Non
     ]
 
 
+def test_get_watchlist_fetches_past_full_page_without_page_count_header(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    first_page = [{"type": "movie", "movie": {"title": str(i)}} for i in range(trakt.PAGE_LIMIT)]
+    second_page = [{"type": "movie", "movie": {"title": "last"}}]
+    session = FakeSession([FakeResponse(first_page), FakeResponse(second_page)])
+    monkeypatch.setattr(trakt.requests, "Session", _session_factory(session))
+
+    assert len(trakt.get_watchlist()) == trakt.PAGE_LIMIT + 1
+    assert [request["params"]["page"] for request in session.requests] == [1, 2]
+
+
+def test_headerless_repeating_full_page_stops_without_duplicates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    page = [{"movie": {"ids": {"trakt": i}}} for i in range(trakt.PAGE_LIMIT)]
+    session = FakeSession([FakeResponse(page), FakeResponse(page)])
+    monkeypatch.setattr(trakt.requests, "Session", _session_factory(session))
+
+    assert trakt.get_watchlist() == page
+    assert len(session.requests) == 2
+
+
+def test_get_watchlist_enforces_page_safety_cap(monkeypatch: pytest.MonkeyPatch) -> None:
+    page = [{"movie": {"ids": {"trakt": 1}}}]
+    session = FakeSession([FakeResponse(page, headers={"X-Pagination-Page-Count": "3"})] * 3)
+    monkeypatch.setattr(trakt.requests, "Session", _session_factory(session))
+    monkeypatch.setattr(trakt, "PAGE_CAP", 2)
+
+    with pytest.raises(ValueError, match="safety cap"):
+        trakt.get_watchlist()
+
+
+def test_get_watchlist_rejects_non_list_and_invalid_items(monkeypatch: pytest.MonkeyPatch) -> None:
+    session = FakeSession([FakeResponse({"unexpected": True})])
+    monkeypatch.setattr(trakt.requests, "Session", _session_factory(session))
+    with pytest.raises(TypeError, match="Expected list"):
+        trakt.get_watchlist()
+
+    session = FakeSession([FakeResponse(["bad item"])])
+    monkeypatch.setattr(trakt.requests, "Session", _session_factory(session))
+    with pytest.raises(TypeError, match="Invalid item"):
+        trakt.get_watchlist()
+
+
+def test_get_watchlist_rejects_pagination_ending_early(monkeypatch: pytest.MonkeyPatch) -> None:
+    session = FakeSession([FakeResponse([], headers={"X-Pagination-Page-Count": "2"})])
+    monkeypatch.setattr(trakt.requests, "Session", _session_factory(session))
+    with pytest.raises(ValueError, match="ended before page"):
+        trakt.get_watchlist()
+
+
+def test_get_watchlist_accepts_zero_page_count_for_empty_list(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = FakeSession([FakeResponse([], headers={"X-Pagination-Page-Count": "0"})])
+    monkeypatch.setattr(trakt.requests, "Session", _session_factory(session))
+
+    assert trakt.get_watchlist() == []
+    assert len(session.requests) == 1
+
+
+def test_get_watchlist_rejects_zero_page_count_with_items(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = FakeSession(
+        [FakeResponse([{"movie": {"ids": {"trakt": 1}}}], headers={"X-Pagination-Page-Count": "0"})]
+    )
+    monkeypatch.setattr(trakt.requests, "Session", _session_factory(session))
+
+    with pytest.raises(ValueError, match="zero pages"):
+        trakt.get_watchlist()
+
+
+def test_get_watchlist_rejects_negative_page_count_header(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = FakeSession([FakeResponse([], headers={"X-Pagination-Page-Count": "-1"})])
+    monkeypatch.setattr(trakt.requests, "Session", _session_factory(session))
+
+    with pytest.raises(ValueError, match="Invalid Trakt X-Pagination-Page-Count"):
+        trakt.get_watchlist()
+
+
+def test_get_watchlist_rejects_invalid_page_count_header(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = FakeSession([FakeResponse([], headers={"X-Pagination-Page-Count": "unknown"})])
+    monkeypatch.setattr(trakt.requests, "Session", _session_factory(session))
+
+    with pytest.raises(ValueError, match="Invalid Trakt X-Pagination-Page-Count"):
+        trakt.get_watchlist()
+
+
 def test_get_effective_watchlist_filters_collection(monkeypatch: pytest.MonkeyPatch) -> None:
     watchlist = [
         {
@@ -119,8 +213,48 @@ def test_get_effective_watchlist_filters_collection(monkeypatch: pytest.MonkeyPa
             "trakt_id": 2,
             "media_type": "show",
             "title": "Severance",
+            "year": None,
             "tmdb_id": 95396,
             "trakt_slug": None,
+            "imdb_id": None,
+            "listed_at": None,
+            "in_collection": False,
+        }
+    ]
+
+
+def test_get_watchlist_snapshot_preserves_metadata_and_collection_membership(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    raw_item = {
+        "type": "movie",
+        "listed_at": "2026-11-01T12:00:00.000Z",
+        "movie": {
+            "title": "Arrival",
+            "year": 2016,
+            "ids": {"trakt": 1, "tmdb": 329865, "imdb": "tt2543164", "slug": "arrival-2016"},
+        },
+    }
+    session = FakeSession(
+        [
+            FakeResponse([{"movie": raw_item["movie"]}]),
+            FakeResponse([]),
+            FakeResponse([raw_item]),
+        ]
+    )
+    monkeypatch.setattr(trakt.requests, "Session", _session_factory(session))
+
+    assert trakt.get_watchlist_snapshot() == [
+        {
+            "trakt_id": 1,
+            "media_type": "movie",
+            "title": "Arrival",
+            "year": 2016,
+            "tmdb_id": 329865,
+            "trakt_slug": "arrival-2016",
+            "imdb_id": "tt2543164",
+            "listed_at": "2026-11-01T12:00:00.000Z",
+            "in_collection": True,
         }
     ]
 

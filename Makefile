@@ -17,7 +17,7 @@ lint: venv
 	@if [ -f Dockerfile ]; then hadolint Dockerfile; fi
 
 test: venv
-	uv run pytest tests/ -v --tb=short --cov=trakt_watchlist_monitor --cov-report=term-missing --cov-report=xml:coverage.xml
+	uv run pytest tests/ -v --tb=short --cov=trakt_watchlist_monitor --cov=scripts --cov-report=term-missing --cov-report=xml:coverage.xml
 
 clean:
 	rm -rf .venv __pycache__ .mypy_cache .pytest_cache .ruff_cache

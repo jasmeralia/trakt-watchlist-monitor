@@ -34,9 +34,15 @@ A Python service that runs continuously or as a single cron-invoked cycle and:
 | `trakt.py` | Trakt API client: OAuth token refresh, watchlist fetch, collection fetch |
 | `justwatch.py` | JustWatch price lookup: TMDB ID → JustWatch ID → Amazon Prime buy prices |
 | `pricing.py` | Quality-tier selection (UHD > HD > SD), discount threshold evaluation, orchestration |
-| `db.py` | SQLite persistence: price history schema, read/write helpers, notification log |
+| `db.py` | SQLite persistence: watchlist metadata, price history, and notification log |
 | `notify.py` | SMTP email alerts via `smtplib` (Gmail App Password supported) |
 | `main.py` | Entry point: runs `check_prices()` continuously, or once with `--once`/`RUN_ONCE` |
+
+Trakt list fetches request 100 items per page and follow `X-Pagination-Page-Count`. A page count
+of 0 is accepted only for an empty first page. When the header is absent, fetching stops at a short
+page or when a full page repeats the previous one, so an endpoint that ignores pagination is not
+read twice. A 1000-page safety cap, a malformed header, or a listing that ends before its reported
+page count raises an error, and the cycle leaves the stored watchlist snapshot unchanged.
 
 ## Configuration Schema
 
@@ -97,6 +103,43 @@ CREATE TABLE IF NOT EXISTS notification_log (
     original_price REAL    NOT NULL
 );
 ```
+
+### `watchlist_items`
+
+Stores the most recent complete Trakt watchlist snapshot, including titles already in the collection.
+Rows remain after removal so readers can distinguish current entries from historical ones. A
+successful monitor cycle updates `in_watchlist` and `in_collection`; failed or incomplete Trakt
+fetches leave the snapshot unchanged. JustWatch links and artwork are filled from price lookups and
+preserved when a later lookup has no value. `first_seen_at` is retained on conflict while
+`last_seen_at` advances on each successful snapshot.
+
+```sql
+CREATE TABLE IF NOT EXISTS watchlist_items (
+    trakt_id       INTEGER NOT NULL,
+    media_type     TEXT    NOT NULL,
+    title          TEXT    NOT NULL,
+    year           INTEGER,
+    trakt_slug     TEXT,
+    tmdb_id        INTEGER,
+    imdb_id        TEXT,
+    listed_at      TEXT,
+    in_watchlist   INTEGER NOT NULL DEFAULT 1,
+    in_collection  INTEGER NOT NULL DEFAULT 0,
+    justwatch_url  TEXT,
+    image_url      TEXT,
+    first_seen_at  TEXT    NOT NULL,
+    last_seen_at   TEXT    NOT NULL,
+    PRIMARY KEY (trakt_id, media_type)
+);
+```
+
+The database migration sets `PRAGMA user_version = 1`.
+
+The Amazon library audit reads the active movie snapshot from SQLite in read-only mode and can use
+exact normalized title matches as additional Trakt candidates when search results omit a known
+watchlist item. Search results remain the primary candidate source, and cached candidates are
+suggestions that still require review. Collected status requires matching year evidence or a
+previous confirmed Trakt ID. Repeated or stale reviewed selections require another review.
 
 ## Docker Deployment
 

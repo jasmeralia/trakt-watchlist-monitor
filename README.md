@@ -164,13 +164,19 @@ uv run python scripts/add_trakt_collection.py --url "..." --check-only
 uv run python scripts/add_trakt_collection.py --url "..." --resolution uhd_4k --commit
 ```
 
-Run `uv run python scripts/add_trakt_collection.py --help` for the full option list.
+Run `uv run python scripts/add_trakt_collection.py --help` for the full option list. Episodes
+can be given as `--show-slug`/`--season`/`--episode`, including season `0` for specials; when
+`--url` cannot be parsed, those flags or `--movie-slug` are used instead. A closed or empty
+confirmation prompt cancels without sending anything.
 
 For a reviewed CSV of movies, `scripts/add_trakt_collection_batch.py` verifies each Trakt ID,
 checks that none are already collected, then submits and verifies the batch. The CSV must contain
 `amazon_title`, `amazon_url`, `trakt_title`, `trakt_year`, `trakt_id`, and `trakt_slug`. It previews
 by default; `--commit` writes the batch, and `--force` skips the confirmation prompt when used
-with `--commit`. Its defaults are `digital`, `uhd_4k`, and stereo `2.0` channels.
+with `--commit`. Its defaults are `digital`, `uhd_4k`, and stereo `2.0` channels. Files with more
+than 100 movies are sent in requests of at most 100, and the whole collection is verified
+afterward. If a request fails partway, the batches already sent stay in the collection; a re-run
+then refuses those movies as already collected, so remove them from the CSV first.
 
 ```bash
 # Preview a reviewed list
@@ -179,6 +185,57 @@ uv run python scripts/add_trakt_collection_batch.py --input reviewed-movies.csv
 # Add it after reviewing the preview
 uv run python scripts/add_trakt_collection_batch.py --input reviewed-movies.csv --commit
 ```
+
+For recurring full-library audits, `scripts/audit_amazon_trakt.py` reads an Amazon export with
+`Amazon title` and `Amazon URL` columns, searches Trakt, and compares candidates with your current
+movie collection. It creates JSON as the editable decision source and a generated Markdown report.
+Candidates are suggestions only; verify each match against the Amazon detail page before approving.
+Exact title matches from the monitor's most recent watchlist snapshot are included as candidates
+when Trakt search omits them; the monitor must have completed a successful cycle to populate this
+cache.
+The JSON supports multiple selected Trakt IDs for a multi-film bundle; `review_note` evidence is
+required before confirmed entries can be exported.
+Run the audit and batch scripts with `DB_PATH` pointing at the monitor's data directory. If an
+OAuth token refresh is needed, the rotated token is written to `tokens.env` beside that database.
+The audit opens that database read-only and never creates or migrates it; when it is missing or
+has no watchlist snapshot, the audit warns and continues without cached candidates.
+
+Each entry's `audit_status` is a review hint, never a decision. `already_collected` requires a
+collected candidate whose year matches a year in the Amazon title, such as `Title (2012)`, or a
+Trakt ID confirmed in a previous review. A collected title match without that evidence is
+`title_match_collected_review`. An `error` status means the Trakt search for that entry failed;
+its previous decision is kept and refreshed on the next audit.
+
+`--previous` matches entries by Amazon ASIN when the URL contains one, so tracking parameters and
+`/dp/` versus `/gp/video/detail/` forms keep their decisions. It warns about previous decisions
+that no longer match an entry. A carried-over `add` whose selected movies are now all collected
+becomes `already_collected`; one whose selection no longer appears among the candidates or is only
+partly collected becomes `stale` and must be reviewed again. Export skips stale entries and
+reports them.
+
+While an audit runs, progress is saved to `<json>.partial`. The `--json` file is replaced only
+after the whole audit finishes, and the `.partial` file is then deleted. When `--previous` and
+`--json` name the same file, the prior complete decisions are first saved as `<json>.bak`.
+
+```bash
+# Generate an audit
+uv run python scripts/audit_amazon_trakt.py \
+  --input amazon-library.csv \
+  --json amazon-audit.json \
+  --markdown amazon-audit.md
+
+# Re-run after a new export while preserving prior review decisions; the overwritten JSON is saved
+# as .bak
+uv run python scripts/audit_amazon_trakt.py \
+  --input amazon-library.csv --previous amazon-audit.json \
+  --json amazon-audit.json --markdown amazon-audit.md
+
+# After reviewing the JSON, export only confirmed missing movies
+uv run python scripts/audit_amazon_trakt.py \
+  --export-reviewed amazon-audit.json --output reviewed-movies.csv
+```
+
+Pass the exported CSV to `add_trakt_collection_batch.py` for preview and collection updates.
 
 ## Development
 

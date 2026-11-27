@@ -1,7 +1,11 @@
 import sqlite3
+from collections.abc import Iterable
 from datetime import UTC, datetime
+from typing import Any
 
 # pylint: disable=too-many-arguments,too-many-positional-arguments
+
+SCHEMA_VERSION = 1
 
 
 def init_db(db_path: str) -> sqlite3.Connection:
@@ -33,8 +37,141 @@ def init_db(db_path: str) -> sqlite3.Connection:
         )
         """
     )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS watchlist_items (
+            trakt_id       INTEGER NOT NULL,
+            media_type     TEXT    NOT NULL,
+            title          TEXT    NOT NULL,
+            year           INTEGER,
+            trakt_slug     TEXT,
+            tmdb_id        INTEGER,
+            imdb_id        TEXT,
+            listed_at      TEXT,
+            in_watchlist   INTEGER NOT NULL DEFAULT 1,
+            in_collection  INTEGER NOT NULL DEFAULT 0,
+            justwatch_url  TEXT,
+            image_url      TEXT,
+            first_seen_at  TEXT    NOT NULL,
+            last_seen_at   TEXT    NOT NULL,
+            PRIMARY KEY (trakt_id, media_type)
+        )
+        """
+    )
+    current_version = int(conn.execute("PRAGMA user_version").fetchone()[0])
+    if current_version < SCHEMA_VERSION:
+        conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
     conn.commit()
     return conn
+
+
+def sync_watchlist_items(conn: sqlite3.Connection, items: Iterable[dict[str, Any]]) -> None:
+    """Atomically upsert a complete watchlist snapshot and mark removed items absent."""
+    now = _utc_now()
+    snapshot = list(items)
+    with conn:
+        for item in snapshot:
+            conn.execute(
+                """
+                INSERT INTO watchlist_items (
+                    trakt_id, media_type, title, year, trakt_slug, tmdb_id, imdb_id,
+                    listed_at, in_watchlist, in_collection, first_seen_at, last_seen_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
+                ON CONFLICT(trakt_id, media_type) DO UPDATE SET
+                    title = excluded.title,
+                    year = excluded.year,
+                    trakt_slug = excluded.trakt_slug,
+                    tmdb_id = excluded.tmdb_id,
+                    imdb_id = excluded.imdb_id,
+                    listed_at = excluded.listed_at,
+                    in_watchlist = 1,
+                    in_collection = excluded.in_collection,
+                    last_seen_at = excluded.last_seen_at
+                """,
+                (
+                    item["trakt_id"],
+                    item["media_type"],
+                    item["title"],
+                    item.get("year"),
+                    item.get("trakt_slug"),
+                    item.get("tmdb_id"),
+                    item.get("imdb_id"),
+                    item.get("listed_at"),
+                    int(bool(item.get("in_collection", False))),
+                    now,
+                    now,
+                ),
+            )
+
+        conn.execute(
+            """
+            CREATE TEMP TABLE IF NOT EXISTS current_watchlist_keys (
+                trakt_id INTEGER NOT NULL,
+                media_type TEXT NOT NULL,
+                PRIMARY KEY (trakt_id, media_type)
+            )
+            """
+        )
+        conn.execute("DELETE FROM current_watchlist_keys")
+        conn.executemany(
+            "INSERT OR IGNORE INTO current_watchlist_keys (trakt_id, media_type) VALUES (?, ?)",
+            [(item["trakt_id"], item["media_type"]) for item in snapshot],
+        )
+        if snapshot:
+            conn.execute(
+                """
+                UPDATE watchlist_items SET in_watchlist = 0
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM current_watchlist_keys AS current
+                    WHERE current.trakt_id = watchlist_items.trakt_id
+                        AND current.media_type = watchlist_items.media_type
+                )
+                """
+            )
+        else:
+            conn.execute("UPDATE watchlist_items SET in_watchlist = 0")
+
+
+def update_watchlist_item_metadata(
+    conn: sqlite3.Connection,
+    trakt_id: int,
+    media_type: str,
+    justwatch_url: str | None,
+    image_url: str | None,
+) -> None:
+    """Fill known JustWatch metadata without replacing existing values with NULL."""
+    conn.execute(
+        """
+        UPDATE watchlist_items
+        SET justwatch_url = COALESCE(?, justwatch_url),
+            image_url = COALESCE(?, image_url)
+        WHERE trakt_id = ? AND media_type = ?
+        """,
+        (justwatch_url, image_url, trakt_id, media_type),
+    )
+    conn.commit()
+
+
+def get_current_watchlist_movies(conn: sqlite3.Connection) -> list[dict[str, Any]]:
+    """Return cached movie metadata for exact matching during an Amazon audit."""
+    rows = conn.execute(
+        """
+        SELECT trakt_id, title, year, trakt_slug, tmdb_id, imdb_id
+        FROM watchlist_items
+        WHERE media_type = 'movie' AND in_watchlist = 1
+        """
+    ).fetchall()
+    return [
+        {
+            "trakt_id": int(row[0]),
+            "trakt_title": str(row[1]),
+            "trakt_year": row[2],
+            "trakt_slug": row[3] or "",
+            "tmdb_id": row[4],
+            "imdb_id": row[5],
+        }
+        for row in rows
+    ]
 
 
 def get_last_price(

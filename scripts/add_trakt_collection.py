@@ -163,22 +163,24 @@ def resolve_identity(args: argparse.Namespace) -> ItemIdentity:
         elif show_match := SHOW_URL_RE.search(args.url):
             is_movie = False
             show_slug = show_slug or show_match.group(1)
+            # Season 0 holds specials, so test for absence rather than truthiness.
             if old_style := OLD_STYLE_SEASON_EPISODE_RE.search(args.url):
-                season = season or int(old_style.group(1))
-                episode = episode or int(old_style.group(2))
-            if not season and (season_match := SEASON_QUERY_RE.search(args.url)):
+                season = int(old_style.group(1)) if season is None else season
+                episode = int(old_style.group(2)) if episode is None else episode
+            if season is None and (season_match := SEASON_QUERY_RE.search(args.url)):
                 season = int(season_match.group(1))
-            if not episode and (episode_match := EPISODE_QUERY_RE.search(args.url)):
+            if episode is None and (episode_match := EPISODE_QUERY_RE.search(args.url)):
                 episode = int(episode_match.group(1))
         else:
             print("Could not parse --url; falling back to --show-slug/--movie-slug.")
+            is_movie = bool(movie_slug) and not show_slug
     elif movie_slug:
         is_movie = True
 
     if is_movie:
         if not movie_slug:
             raise UsageError("Missing movie slug. Nothing to do.")
-    elif not show_slug or not season or not episode:
+    elif not show_slug or season is None or episode is None:
         raise UsageError("Missing show slug, season, or episode number. Nothing to do.")
 
     return ItemIdentity(is_movie, show_slug, season, episode, movie_slug)
@@ -224,8 +226,8 @@ def build_label(identity: ItemIdentity, item_info: dict[str, Any]) -> str:
 
 
 def fetch_collection_movie_entry(movie_slug: str) -> dict[str, Any] | None:
-    response = _trakt_request("GET", "/sync/collection/movies?extended=full")
-    for entry in response.json():
+    entries = trakt._get("/sync/collection/movies?extended=full")  # pylint: disable=protected-access
+    for entry in entries:
         if entry.get("movie", {}).get("ids", {}).get("slug") == movie_slug:
             return dict(entry)
     return None
@@ -234,8 +236,8 @@ def fetch_collection_movie_entry(movie_slug: str) -> dict[str, Any] | None:
 def fetch_collection_episode_entry(
     show_slug: str, season: int, episode: int
 ) -> dict[str, Any] | None:
-    response = _trakt_request("GET", "/sync/collection/shows?extended=full")
-    for show_entry in response.json():
+    shows = trakt._get("/sync/collection/shows?extended=full")  # pylint: disable=protected-access
+    for show_entry in shows:
         if show_entry.get("show", {}).get("ids", {}).get("slug") != show_slug:
             continue
         for season_entry in show_entry.get("seasons", []):
@@ -317,7 +319,10 @@ def print_preview(args: argparse.Namespace, payload: dict[str, Any]) -> None:
 
 
 def confirm_send() -> bool:
-    answer = input("Send this to your Trakt collection? (y/n) ")
+    try:
+        answer = input("Send this to your Trakt collection? (y/n) ")
+    except EOFError:
+        return False
     return answer.strip().lower() == "y"
 
 
@@ -383,7 +388,7 @@ def main() -> None:
     except UsageError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         sys.exit(2)
-    except requests.HTTPError as exc:
+    except requests.RequestException as exc:
         print(f"Trakt API request failed: {exc}", file=sys.stderr)
         sys.exit(1)
     sys.exit(0 if ok else 1)

@@ -9,6 +9,7 @@ from .config import settings
 
 BASE_URL = "https://api.trakt.tv"
 PAGE_LIMIT = 100
+PAGE_CAP = 1000
 
 
 def refresh_token() -> None:
@@ -53,21 +54,36 @@ def get_collection() -> list[dict[str, Any]]:
     return [*movies, *shows]
 
 
+def get_watchlist_snapshot() -> list[dict[str, Any]]:
+    """Fetch and normalize a complete watchlist plus collection membership snapshot."""
+    collection_keys: set[tuple[int, str]] = set()
+    for item in get_collection():
+        key = _item_trakt_key(item)
+        if key is None:
+            msg = "Invalid item in Trakt collection response"
+            raise TypeError(msg)
+        collection_keys.add(key)
+    raw_watchlist = get_watchlist()
+    snapshot = []
+    for item in raw_watchlist:
+        normalized = _normalize_watchlist_item(item)
+        if normalized is not None:
+            key = (normalized["trakt_id"], normalized["media_type"])
+            snapshot.append({**normalized, "in_collection": key in collection_keys})
+    return snapshot
+
+
 def get_effective_watchlist() -> list[dict[str, Any]]:
-    collection_ids = {_item_trakt_id(item) for item in get_collection()}
-    return [
-        normalized
-        for item in get_watchlist()
-        if (normalized := _normalize_watchlist_item(item)) is not None
-        and normalized["trakt_id"] not in collection_ids
-    ]
+    return [item for item in get_watchlist_snapshot() if not item["in_collection"]]
 
 
 def _get(path: str) -> list[dict[str, Any]]:
     items: list[dict[str, Any]] = []
     page = 1
-    page_count = 1
-    while page <= page_count:
+    previous_page: list[dict[str, Any]] | None = None
+    while True:
+        if page > PAGE_CAP:
+            raise ValueError(f"Trakt pagination exceeded the {PAGE_CAP}-page safety cap for {path}")
         response = _request_with_refresh(
             "GET",
             path,
@@ -77,18 +93,48 @@ def _get(path: str) -> list[dict[str, Any]]:
         if not isinstance(data, list):
             msg = f"Expected list response from Trakt path {path}"
             raise TypeError(msg)
-        items.extend(item for item in data if isinstance(item, dict))
-        page_count = _pagination_page_count(response)
+        if any(not isinstance(item, dict) for item in data):
+            msg = f"Invalid item in Trakt response from {path} page {page}"
+            raise TypeError(msg)
+        raw_page_count = response.headers.get("X-Pagination-Page-Count")
+        if raw_page_count is not None:
+            page_count = _pagination_page_count(response)
+            if page_count == 0:
+                # An empty list may report zero pages; anything else contradicts the header.
+                if page == 1 and not data:
+                    break
+                msg = f"Trakt reported zero pages on page {page} of a non-empty listing for {path}"
+                raise ValueError(msg)
+            if page > page_count:
+                msg = f"Trakt pagination ended before page {page} of {page_count} for {path}"
+                raise ValueError(msg)
+            if not data and page < page_count:
+                msg = f"Trakt pagination ended before page {page + 1} of {page_count} for {path}"
+                raise ValueError(msg)
+            if page >= page_count:
+                items.extend(data)
+                break
+        elif len(data) < PAGE_LIMIT:
+            items.extend(data)
+            break
+        elif previous_page is not None and data == previous_page:
+            break
+        items.extend(data)
         page += 1
+        previous_page = data
     return items
 
 
 def _pagination_page_count(response: requests.Response) -> int:
-    raw_page_count = response.headers.get("X-Pagination-Page-Count", "1")
+    raw_page_count = response.headers.get("X-Pagination-Page-Count")
     try:
-        return max(int(raw_page_count), 1)
-    except ValueError:
-        return 1
+        page_count = int(raw_page_count or "")
+        if page_count < 0:
+            raise ValueError
+        return page_count
+    except ValueError as exc:
+        msg = f"Invalid Trakt X-Pagination-Page-Count header: {raw_page_count!r}"
+        raise ValueError(msg) from exc
 
 
 def add_to_sale_list(trakt_id: int, media_type: str) -> None:
@@ -182,13 +228,33 @@ def _normalize_watchlist_item(item: dict[str, Any]) -> dict[str, Any] | None:
 
     tmdb_id = ids.get("tmdb")
     slug = ids.get("slug")
+    imdb_id = ids.get("imdb")
+    listed_at = item.get("listed_at")
+    year = media.get("year")
     return {
         "trakt_id": trakt_id,
         "media_type": media_type,
         "title": str(media.get("title", "")),
+        "year": year if isinstance(year, int) else None,
         "tmdb_id": tmdb_id if isinstance(tmdb_id, int) else None,
         "trakt_slug": slug if isinstance(slug, str) else None,
+        "imdb_id": imdb_id if isinstance(imdb_id, str) else None,
+        "listed_at": listed_at if isinstance(listed_at, str) else None,
     }
+
+
+def _item_trakt_key(item: dict[str, Any]) -> tuple[int, str] | None:
+    for media_type in ("movie", "show"):
+        media = item.get(media_type)
+        if not isinstance(media, dict):
+            continue
+        ids = media.get("ids")
+        if not isinstance(ids, dict):
+            continue
+        trakt_id = ids.get("trakt")
+        if isinstance(trakt_id, int):
+            return trakt_id, media_type
+    return None
 
 
 def _item_trakt_id(item: dict[str, Any]) -> int | None:
