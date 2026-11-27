@@ -189,6 +189,27 @@ when Trakt search omits them; the monitor must have completed a successful cycle
 cache.
 The JSON supports multiple selected Trakt IDs for a multi-film bundle; `review_note` evidence is
 required before confirmed entries can be exported.
+Run the audit and batch scripts with `DB_PATH` pointing at the monitor's data directory. If an
+OAuth token refresh is needed, the rotated token is written to `tokens.env` beside that database.
+The audit opens that database read-only and never creates or migrates it; when it is missing or
+has no watchlist snapshot, the audit warns and continues without cached candidates.
+
+Each entry's `audit_status` is a review hint, never a decision. `already_collected` requires a
+collected candidate whose year matches a year in the Amazon title, such as `Title (2012)`, or a
+Trakt ID confirmed in a previous review. A collected title match without that evidence is
+`title_match_collected_review`. An `error` status means the Trakt search for that entry failed;
+its previous decision is kept and refreshed on the next audit.
+
+`--previous` matches entries by Amazon ASIN when the URL contains one, so tracking parameters and
+`/dp/` versus `/gp/video/detail/` forms keep their decisions. It warns about previous decisions
+that no longer match an entry. A carried-over `add` whose selected movies are now all collected
+becomes `already_collected`; one whose selection no longer appears among the candidates or is only
+partly collected becomes `stale` and must be reviewed again. Export skips stale entries and
+reports them.
+
+While an audit runs, progress is saved to `<json>.partial`. The `--json` file is replaced only
+after the whole audit finishes, and the `.partial` file is then deleted. When `--previous` and
+`--json` name the same file, the prior complete decisions are first saved as `<json>.bak`.
 
 ```bash
 # Generate an audit
@@ -197,7 +218,8 @@ uv run python scripts/audit_amazon_trakt.py \
   --json amazon-audit.json \
   --markdown amazon-audit.md
 
-# Re-run after a new export while preserving prior review decisions
+# Re-run after a new export while preserving prior review decisions; the overwritten JSON is saved
+# as .bak
 uv run python scripts/audit_amazon_trakt.py \
   --input amazon-library.csv --previous amazon-audit.json \
   --json amazon-audit.json --markdown amazon-audit.md

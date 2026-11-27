@@ -38,6 +38,12 @@ A Python service that runs continuously or as a single cron-invoked cycle and:
 | `notify.py` | SMTP email alerts via `smtplib` (Gmail App Password supported) |
 | `main.py` | Entry point: runs `check_prices()` continuously, or once with `--once`/`RUN_ONCE` |
 
+Trakt list fetches request 100 items per page and follow `X-Pagination-Page-Count`. A page count
+of 0 is accepted only for an empty first page. When the header is absent, fetching stops at a short
+page or when a full page repeats the previous one, so an endpoint that ignores pagination is not
+read twice. A 1000-page safety cap, a malformed header, or a listing that ends before its reported
+page count raises an error, and the cycle leaves the stored watchlist snapshot unchanged.
+
 ## Configuration Schema
 
 All configuration is read from `.env` (bind-mounted at `/app/.env` in Docker) via pydantic-settings.
@@ -129,9 +135,11 @@ CREATE TABLE IF NOT EXISTS watchlist_items (
 
 The database migration sets `PRAGMA user_version = 1`.
 
-The Amazon library audit can use exact normalized title matches from the active movie snapshot as
-additional Trakt candidates when search results omit a known watchlist item. Search results remain
-the primary candidate source, and cached candidates are suggestions that still require review.
+The Amazon library audit reads the active movie snapshot from SQLite in read-only mode and can use
+exact normalized title matches as additional Trakt candidates when search results omit a known
+watchlist item. Search results remain the primary candidate source, and cached candidates are
+suggestions that still require review. Collected status requires matching year evidence or a
+previous confirmed Trakt ID. Repeated or stale reviewed selections require another review.
 
 ## Docker Deployment
 

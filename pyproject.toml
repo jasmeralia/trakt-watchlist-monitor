@@ -54,3 +54,12 @@ disable = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--tb=short -q"
+
+[tool.coverage.run]
+# scripts/ is measured so new one-off tools must ship with tests. These older helpers predate that
+# rule and are excluded until they gain their own tests.
+omit = [
+    "scripts/add_trakt_collection.py",
+    "scripts/add_trakt_collection_batch.py",
+    "scripts/authorize_trakt.py",
+]

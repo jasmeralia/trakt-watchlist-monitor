@@ -62,11 +62,12 @@ similarity, and current collection membership. Treat search candidates as sugges
 Amazon detail page's year and synopsis before selecting a movie, especially for remakes, bundles,
 or duplicate Trakt records. Preserve decisions between audits with `--previous`.
 
-In the JSON, set each reviewed item's `decision` to `add`, `already_collected`, `not_a_movie`, or
-`no_match`; for `add`, populate `selected_trakt_ids` with one or more candidate IDs (multiple IDs
-support multi-film bundles) and add a non-empty `review_note` describing the evidence. Export only approved
-missing movies to the existing batch-import CSV with `--export-reviewed`. Never infer matches from
-title similarity alone.
+In the JSON, set each reviewed item's `decision` to `add`, `already_collected`, `not_a_movie`,
+`no_match`, or `stale`; `pending` is the default. For `add`, populate `selected_trakt_ids` with one
+or more candidate IDs (multiple IDs support multi-film bundles) and add a non-empty `review_note`
+describing the evidence. Re-review stale items before exporting.
+Export only approved missing movies to the existing batch-import CSV with `--export-reviewed`.
+Never infer matches from title similarity alone.
 
 Use `scripts/add_trakt_collection_batch.py --input <csv>` for a preview. It verifies every Trakt
 ID and slug and refuses to overwrite items already collected. Only after reviewing the preview,

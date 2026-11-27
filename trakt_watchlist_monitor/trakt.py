@@ -9,6 +9,7 @@ from .config import settings
 
 BASE_URL = "https://api.trakt.tv"
 PAGE_LIMIT = 100
+PAGE_CAP = 1000
 
 
 def refresh_token() -> None:
@@ -79,7 +80,10 @@ def get_effective_watchlist() -> list[dict[str, Any]]:
 def _get(path: str) -> list[dict[str, Any]]:
     items: list[dict[str, Any]] = []
     page = 1
+    previous_page: list[dict[str, Any]] | None = None
     while True:
+        if page > PAGE_CAP:
+            raise ValueError(f"Trakt pagination exceeded the {PAGE_CAP}-page safety cap for {path}")
         response = _request_with_refresh(
             "GET",
             path,
@@ -92,18 +96,32 @@ def _get(path: str) -> list[dict[str, Any]]:
         if any(not isinstance(item, dict) for item in data):
             msg = f"Invalid item in Trakt response from {path} page {page}"
             raise TypeError(msg)
-        items.extend(data)
         raw_page_count = response.headers.get("X-Pagination-Page-Count")
         if raw_page_count is not None:
             page_count = _pagination_page_count(response)
+            if page_count == 0:
+                # An empty list may report zero pages; anything else contradicts the header.
+                if page == 1 and not data:
+                    break
+                msg = f"Trakt reported zero pages on page {page} of a non-empty listing for {path}"
+                raise ValueError(msg)
             if page > page_count:
                 msg = f"Trakt pagination ended before page {page} of {page_count} for {path}"
                 raise ValueError(msg)
+            if not data and page < page_count:
+                msg = f"Trakt pagination ended before page {page + 1} of {page_count} for {path}"
+                raise ValueError(msg)
             if page >= page_count:
+                items.extend(data)
                 break
         elif len(data) < PAGE_LIMIT:
+            items.extend(data)
             break
+        elif previous_page is not None and data == previous_page:
+            break
+        items.extend(data)
         page += 1
+        previous_page = data
     return items
 
 
@@ -111,7 +129,7 @@ def _pagination_page_count(response: requests.Response) -> int:
     raw_page_count = response.headers.get("X-Pagination-Page-Count")
     try:
         page_count = int(raw_page_count or "")
-        if page_count < 1:
+        if page_count < 0:
             raise ValueError
         return page_count
     except ValueError as exc:
