@@ -14,6 +14,12 @@ class FakeConnection:
         self.closed = True
 
 
+@pytest.fixture(autouse=True)
+def mock_watchlist_storage(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(pricing.db, "sync_watchlist_items", Mock())
+    monkeypatch.setattr(pricing.db, "update_watchlist_item_metadata", Mock())
+
+
 class TestSelectBestQuality:
     def test_prefers_uhd_over_hd_and_sd(self) -> None:
         prices = [
@@ -70,6 +76,23 @@ class TestMeetsDiscountThreshold:
 
 
 class TestCheckPrices:
+    def test_failed_snapshot_does_not_sync_watchlist(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        conn = FakeConnection()
+        sync = pricing.db.sync_watchlist_items
+        monkeypatch.setattr(pricing.settings, "db_path", ":memory:")
+        monkeypatch.setattr(pricing.db, "init_db", Mock(return_value=conn))
+        monkeypatch.setattr(
+            pricing.trakt,
+            "get_watchlist_snapshot",
+            Mock(side_effect=RuntimeError("Trakt fetch failed")),
+        )
+
+        with pytest.raises(RuntimeError, match="Trakt fetch failed"):
+            pricing.check_prices()
+
+        sync.assert_not_called()
+        assert conn.closed is True
+
     def test_sends_alert_when_threshold_is_met(self, monkeypatch: pytest.MonkeyPatch) -> None:
         conn = FakeConnection()
         send_digest = Mock()
@@ -81,7 +104,7 @@ class TestCheckPrices:
         monkeypatch.setattr(pricing.db, "init_db", Mock(return_value=conn))
         monkeypatch.setattr(
             pricing.trakt,
-            "get_effective_watchlist",
+            "get_watchlist_snapshot",
             Mock(
                 return_value=[
                     {
@@ -130,7 +153,7 @@ class TestCheckPrices:
         monkeypatch.setattr(pricing.db, "init_db", Mock(return_value=conn))
         monkeypatch.setattr(
             pricing.trakt,
-            "get_effective_watchlist",
+            "get_watchlist_snapshot",
             Mock(
                 return_value=[
                     {
@@ -173,7 +196,7 @@ class TestCheckPrices:
         monkeypatch.setattr(pricing.db, "init_db", Mock(return_value=conn))
         monkeypatch.setattr(
             pricing.trakt,
-            "get_effective_watchlist",
+            "get_watchlist_snapshot",
             Mock(
                 return_value=[
                     {
@@ -216,7 +239,7 @@ class TestCheckPrices:
         monkeypatch.setattr(pricing.db, "init_db", Mock(return_value=conn))
         monkeypatch.setattr(
             pricing.trakt,
-            "get_effective_watchlist",
+            "get_watchlist_snapshot",
             Mock(
                 return_value=[
                     {
@@ -255,7 +278,7 @@ class TestCheckPrices:
         monkeypatch.setattr(pricing.db, "init_db", Mock(return_value=conn))
         monkeypatch.setattr(
             pricing.trakt,
-            "get_effective_watchlist",
+            "get_watchlist_snapshot",
             Mock(
                 return_value=[
                     {
@@ -290,7 +313,7 @@ class TestCheckPrices:
         monkeypatch.setattr(pricing.db, "init_db", Mock(return_value=conn))
         monkeypatch.setattr(
             pricing.trakt,
-            "get_effective_watchlist",
+            "get_watchlist_snapshot",
             Mock(
                 return_value=[
                     {
@@ -327,7 +350,7 @@ class TestCheckPrices:
         monkeypatch.setattr(pricing.db, "init_db", Mock(return_value=conn))
         monkeypatch.setattr(
             pricing.trakt,
-            "get_effective_watchlist",
+            "get_watchlist_snapshot",
             Mock(
                 return_value=[
                     {
@@ -361,7 +384,7 @@ class TestCheckPrices:
         monkeypatch.setattr(pricing.db, "init_db", Mock(return_value=conn))
         monkeypatch.setattr(
             pricing.trakt,
-            "get_effective_watchlist",
+            "get_watchlist_snapshot",
             Mock(
                 return_value=[
                     {
@@ -405,7 +428,7 @@ class TestCheckPrices:
         monkeypatch.setattr(pricing.db, "init_db", Mock(return_value=conn))
         monkeypatch.setattr(
             pricing.trakt,
-            "get_effective_watchlist",
+            "get_watchlist_snapshot",
             Mock(
                 return_value=[
                     {
@@ -454,7 +477,7 @@ class TestCheckPrices:
         monkeypatch.setattr(pricing.db, "init_db", Mock(return_value=conn))
         monkeypatch.setattr(
             pricing.trakt,
-            "get_effective_watchlist",
+            "get_watchlist_snapshot",
             Mock(
                 return_value=[
                     {
@@ -495,7 +518,7 @@ class TestCheckPrices:
         monkeypatch.setattr(pricing.db, "init_db", Mock(return_value=conn))
         monkeypatch.setattr(
             pricing.trakt,
-            "get_effective_watchlist",
+            "get_watchlist_snapshot",
             Mock(
                 return_value=[
                     {
@@ -542,7 +565,7 @@ class TestCheckPrices:
         monkeypatch.setattr(pricing.db, "init_db", Mock(return_value=conn))
         monkeypatch.setattr(
             pricing.trakt,
-            "get_effective_watchlist",
+            "get_watchlist_snapshot",
             Mock(
                 return_value=[
                     {
@@ -589,7 +612,7 @@ class TestCheckPrices:
         monkeypatch.setattr(pricing.db, "init_db", Mock(return_value=conn))
         monkeypatch.setattr(
             pricing.trakt,
-            "get_effective_watchlist",
+            "get_watchlist_snapshot",
             Mock(
                 return_value=[
                     {
@@ -633,7 +656,7 @@ class TestCheckPrices:
         monkeypatch.setattr(pricing.db, "init_db", Mock(return_value=conn))
         monkeypatch.setattr(
             pricing.trakt,
-            "get_effective_watchlist",
+            "get_watchlist_snapshot",
             Mock(
                 return_value=[
                     {
@@ -678,7 +701,7 @@ class TestCheckPrices:
         monkeypatch.setattr(pricing.db, "init_db", Mock(return_value=conn))
         monkeypatch.setattr(
             pricing.trakt,
-            "get_effective_watchlist",
+            "get_watchlist_snapshot",
             Mock(
                 return_value=[
                     {
@@ -723,7 +746,7 @@ class TestCheckPrices:
         monkeypatch.setattr(pricing.db, "init_db", Mock(return_value=conn))
         monkeypatch.setattr(
             pricing.trakt,
-            "get_effective_watchlist",
+            "get_watchlist_snapshot",
             Mock(
                 return_value=[
                     {
@@ -773,7 +796,7 @@ class TestCheckPrices:
         monkeypatch.setattr(pricing.db, "init_db", Mock(return_value=conn))
         monkeypatch.setattr(
             pricing.trakt,
-            "get_effective_watchlist",
+            "get_watchlist_snapshot",
             Mock(
                 return_value=[
                     {

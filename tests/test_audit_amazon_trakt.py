@@ -7,7 +7,14 @@ from scripts.audit_amazon_trakt import (
     export_reviewed,
     load_amazon_rows,
     normalize_title,
+    search_candidates,
 )
+from trakt_watchlist_monitor import trakt
+
+
+class FakeResponse:
+    def json(self):
+        return []
 
 
 def test_load_amazon_export_headers(tmp_path):
@@ -24,6 +31,40 @@ def test_load_amazon_export_headers(tmp_path):
 
 def test_normalize_title_strips_format_tags():
     assert normalize_title("Robin Hood (2018) (4K UHD)") == "robin hood 2018"
+
+
+def test_search_candidates_adds_exact_watchlist_cache_match(monkeypatch):
+    monkeypatch.setattr(trakt, "_request_with_refresh", lambda *args, **kwargs: FakeResponse())
+    cached = [
+        {
+            "trakt_id": 438631,
+            "trakt_title": "Dune",
+            "trakt_year": 2021,
+            "trakt_slug": "dune-2021",
+            "tmdb_id": 438631,
+            "imdb_id": "tt1160419",
+        }
+    ]
+
+    candidates = search_candidates("Dune", 10, cached)
+
+    assert candidates == [
+        {
+            **cached[0],
+            "trakt_url": "https://trakt.tv/movies/dune-2021",
+            "overview": "",
+            "search_score": None,
+            "title_similarity": 1.0,
+            "cache_match": True,
+        }
+    ]
+
+
+def test_search_candidates_does_not_use_fuzzy_cache_match(monkeypatch):
+    monkeypatch.setattr(trakt, "_request_with_refresh", lambda *args, **kwargs: FakeResponse())
+    cached = [{"trakt_id": 1, "trakt_title": "Dune: Part Two", "trakt_year": 2024}]
+
+    assert search_candidates("Dune", 10, cached) == []
 
 
 def test_classify_near_title_match_already_in_collection():

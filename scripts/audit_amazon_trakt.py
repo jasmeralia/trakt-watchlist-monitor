@@ -20,7 +20,7 @@ import requests
 script_dir = Path(__file__).resolve().parent
 sys.path.insert(0, str(script_dir.parent))
 
-from trakt_watchlist_monitor import trakt
+from trakt_watchlist_monitor import db, trakt
 from trakt_watchlist_monitor.config import settings
 
 COLLECTION_WORDS = re.compile(r"\b(collection|triple feature|bundle|2-film|3-film|4-film)\b", re.I)
@@ -86,7 +86,9 @@ def previous_decisions(path: Path | None) -> dict[str, dict[str, Any]]:
     }
 
 
-def search_candidates(title: str, limit: int) -> list[dict[str, Any]]:
+def search_candidates(
+    title: str, limit: int, cached_movies: list[dict[str, Any]] | None = None
+) -> list[dict[str, Any]]:
     response = trakt._request_with_refresh(  # pylint: disable=protected-access
         "GET", f"/search/movie?query={quote(title)}&limit={limit}"
     )
@@ -116,6 +118,26 @@ def search_candidates(title: str, limit: int) -> list[dict[str, Any]]:
                 ),
             }
         )
+    candidate_ids = {candidate["trakt_id"] for candidate in candidates}
+    normalized_title = normalize_title(title)
+    for cached in cached_movies or []:
+        if (
+            normalize_title(str(cached.get("trakt_title", ""))) != normalized_title
+            or cached.get("trakt_id") in candidate_ids
+        ):
+            continue
+        slug = str(cached.get("trakt_slug", ""))
+        candidates.append(
+            {
+                **cached,
+                "trakt_url": f"https://trakt.tv/movies/{slug}" if slug else "",
+                "overview": "",
+                "search_score": None,
+                "title_similarity": 1.0,
+                "cache_match": True,
+            }
+        )
+        candidate_ids.add(cached["trakt_id"])
     return candidates
 
 
@@ -156,10 +178,15 @@ def build_audit(
     rows: list[dict[str, str]], limit: int, previous: dict[str, dict[str, Any]]
 ) -> dict[str, Any]:
     collected = collect_ids()
+    conn = db.init_db(settings.db_path)
+    try:
+        cached_movies = db.get_current_watchlist_movies(conn)
+    finally:
+        conn.close()
     items: list[dict[str, Any]] = []
     for row in rows:
         old = previous.get(row["amazon_url"], {})
-        candidates = search_candidates(row["amazon_title"], limit)
+        candidates = search_candidates(row["amazon_title"], limit, cached_movies)
         for candidate in candidates:
             candidate["in_collection"] = candidate["trakt_id"] in collected
         status = classify_status(row["amazon_title"], candidates)
@@ -206,6 +233,7 @@ def write_markdown(path: Path, data: dict[str, Any]) -> None:
                     f"  - [{candidate['trakt_title']} ({candidate['trakt_year']})]"
                     f"({candidate['trakt_url']}) — ID `{candidate['trakt_id']}`, "
                     f"{collected}, similarity `{candidate['title_similarity']}`"
+                    f"{', exact watchlist cache match' if candidate.get('cache_match') else ''}"
                 )
                 lines.append(candidate_line)
                 if overview:

@@ -125,6 +125,7 @@ def _process_watchlist_item(  # pylint: disable=too-many-locals
 
     title = str(item.get("title", ""))
     prices, image_url, jw_url = justwatch.get_amazon_prices(tmdb_id, media_type, title)
+    db.update_watchlist_item_metadata(conn, trakt_id, media_type, jw_url, image_url)
     logger.debug(
         "Prices seen for trakt_id=%d media_type=%s tmdb_id=%d: offer_count=%d offers=%s",
         trakt_id,
@@ -295,7 +296,9 @@ def check_prices() -> None:
     logger.info("Checking watchlist prices")
     # pylint: disable=too-many-nested-blocks
     try:
-        watchlist = trakt.get_effective_watchlist()
+        snapshot = trakt.get_watchlist_snapshot()
+        db.sync_watchlist_items(conn, snapshot)
+        watchlist = [item for item in snapshot if not item.get("in_collection", False)]
         stats["watchlist_items"] = len(watchlist)
         for item in watchlist:
             item_fields = _extract_item_fields(item, stats)

@@ -1,10 +1,15 @@
 import sqlite3
+from pathlib import Path
 
+import pytest
 from trakt_watchlist_monitor.db import (
+    get_current_watchlist_movies,
     get_last_price,
     init_db,
     log_notification,
     reset_notification_state,
+    sync_watchlist_items,
+    update_watchlist_item_metadata,
     upsert_price,
     was_notified,
 )
@@ -18,13 +23,111 @@ def test_init_db_creates_tables() -> None:
             SELECT name
             FROM sqlite_master
             WHERE type = 'table'
-                AND name IN ('price_history', 'notification_log')
+                AND name IN ('price_history', 'notification_log', 'watchlist_items')
             """
         ).fetchall()
     finally:
         conn.close()
 
-    assert {row[0] for row in rows} == {"price_history", "notification_log"}
+    assert {row[0] for row in rows} == {
+        "price_history",
+        "notification_log",
+        "watchlist_items",
+    }
+
+
+def _watchlist_item(trakt_id: int, title: str = "Arrival") -> dict[str, object]:
+    return {
+        "trakt_id": trakt_id,
+        "media_type": "movie",
+        "title": title,
+        "year": 2016,
+        "trakt_slug": "arrival-2016",
+        "tmdb_id": 329865,
+        "imdb_id": "tt2543164",
+        "listed_at": "2026-11-01T12:00:00.000Z",
+        "in_collection": False,
+    }
+
+
+def test_init_db_migration_is_idempotent_and_sets_user_version(tmp_path: Path) -> None:
+    path = str(tmp_path / "prices.db")
+    first = init_db(path)
+    first.close()
+    second = init_db(path)
+    try:
+        assert second.execute("PRAGMA user_version").fetchone()[0] == 1
+        assert second.execute("SELECT COUNT(*) FROM watchlist_items").fetchone()[0] == 0
+    finally:
+        second.close()
+
+
+def test_sync_watchlist_items_upserts_and_marks_removed() -> None:
+    conn = init_db(":memory:")
+    try:
+        sync_watchlist_items(conn, [_watchlist_item(1), _watchlist_item(2, "Dune")])
+        sync_watchlist_items(conn, [_watchlist_item(1, "Arrival (updated)")])
+
+        rows = conn.execute(
+            "SELECT trakt_id, title, in_watchlist FROM watchlist_items ORDER BY trakt_id"
+        ).fetchall()
+        assert rows == [(1, "Arrival (updated)", 1), (2, "Dune", 0)]
+    finally:
+        conn.close()
+
+
+def test_sync_watchlist_items_rolls_back_partial_snapshot() -> None:
+    conn = init_db(":memory:")
+    try:
+        sync_watchlist_items(conn, [_watchlist_item(1)])
+        with pytest.raises(KeyError):
+            sync_watchlist_items(conn, [_watchlist_item(2), {"trakt_id": 3}])
+
+        rows = conn.execute("SELECT trakt_id FROM watchlist_items").fetchall()
+        assert rows == [(1,)]
+    finally:
+        conn.close()
+
+
+def test_watchlist_item_metadata_keeps_existing_values_when_lookup_is_empty() -> None:
+    conn = init_db(":memory:")
+    try:
+        sync_watchlist_items(conn, [_watchlist_item(1)])
+        update_watchlist_item_metadata(
+            conn, 1, "movie", "https://www.justwatch.com/us/movie/arrival", "https://img/poster.jpg"
+        )
+        update_watchlist_item_metadata(conn, 1, "movie", None, None)
+
+        assert conn.execute(
+            "SELECT justwatch_url, image_url FROM watchlist_items WHERE trakt_id = 1"
+        ).fetchone() == (
+            "https://www.justwatch.com/us/movie/arrival",
+            "https://img/poster.jpg",
+        )
+    finally:
+        conn.close()
+
+
+def test_get_current_watchlist_movies_returns_only_active_movies() -> None:
+    conn = init_db(":memory:")
+    try:
+        movie = _watchlist_item(1)
+        show = {**_watchlist_item(2), "media_type": "show"}
+        sync_watchlist_items(conn, [movie, show])
+        sync_watchlist_items(conn, [movie])
+
+        assert get_current_watchlist_movies(conn) == [
+            {
+                "trakt_id": 1,
+                "trakt_title": "Arrival",
+                "trakt_year": 2016,
+                "trakt_slug": "arrival-2016",
+                "tmdb_id": 329865,
+                "imdb_id": "tt2543164",
+            }
+        ]
+    finally:
+        conn.close()
 
 
 def test_get_last_price_returns_none_for_unknown_item() -> None:

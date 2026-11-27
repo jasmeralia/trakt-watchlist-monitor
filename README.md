@@ -184,6 +184,9 @@ For recurring full-library audits, `scripts/audit_amazon_trakt.py` reads an Amaz
 `Amazon title` and `Amazon URL` columns, searches Trakt, and compares candidates with your current
 movie collection. It creates JSON as the editable decision source and a generated Markdown report.
 Candidates are suggestions only; verify each match against the Amazon detail page before approving.
+Exact title matches from the monitor's most recent watchlist snapshot are included as candidates
+when Trakt search omits them; the monitor must have completed a successful cycle to populate this
+cache.
 The JSON supports multiple selected Trakt IDs for a multi-film bundle; `review_note` evidence is
 required before confirmed entries can be exported.
 
