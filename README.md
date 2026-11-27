@@ -164,13 +164,19 @@ uv run python scripts/add_trakt_collection.py --url "..." --check-only
 uv run python scripts/add_trakt_collection.py --url "..." --resolution uhd_4k --commit
 ```
 
-Run `uv run python scripts/add_trakt_collection.py --help` for the full option list.
+Run `uv run python scripts/add_trakt_collection.py --help` for the full option list. Episodes
+can be given as `--show-slug`/`--season`/`--episode`, including season `0` for specials; when
+`--url` cannot be parsed, those flags or `--movie-slug` are used instead. A closed or empty
+confirmation prompt cancels without sending anything.
 
 For a reviewed CSV of movies, `scripts/add_trakt_collection_batch.py` verifies each Trakt ID,
 checks that none are already collected, then submits and verifies the batch. The CSV must contain
 `amazon_title`, `amazon_url`, `trakt_title`, `trakt_year`, `trakt_id`, and `trakt_slug`. It previews
 by default; `--commit` writes the batch, and `--force` skips the confirmation prompt when used
-with `--commit`. Its defaults are `digital`, `uhd_4k`, and stereo `2.0` channels.
+with `--commit`. Its defaults are `digital`, `uhd_4k`, and stereo `2.0` channels. Files with more
+than 100 movies are sent in requests of at most 100, and the whole collection is verified
+afterward. If a request fails partway, the batches already sent stay in the collection; a re-run
+then refuses those movies as already collected, so remove them from the CSV first.
 
 ```bash
 # Preview a reviewed list

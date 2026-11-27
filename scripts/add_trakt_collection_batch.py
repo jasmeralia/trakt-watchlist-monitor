@@ -2,8 +2,9 @@
 
 The CSV must contain ``amazon_title``, ``amazon_url``, ``trakt_title``,
 ``trakt_year``, ``trakt_id``, and ``trakt_slug`` columns. The default action is
-preview-only; pass ``--commit`` to write. Credentials come from the project's
-normal settings and are never printed.
+preview-only; pass ``--commit`` to write. Larger files are sent in requests of at
+most 100 movies. Credentials come from the project's normal settings and are never
+printed.
 """
 
 # Project modules are imported after adding the checkout to sys.path.
@@ -31,6 +32,8 @@ from add_trakt_collection import (  # pylint: disable=wrong-import-order
     MEDIA_TYPES,
     RESOLUTIONS,
 )
+
+BATCH_SIZE = 100
 
 
 @dataclass(frozen=True)
@@ -119,7 +122,9 @@ def fetch_movie(target: MovieTarget) -> dict[str, Any]:
         "GET", f"/movies/{target.trakt_id}?extended=full"
     )
     movie = response.json()
-    ids = movie.get("ids", {})
+    if not isinstance(movie, dict):
+        raise ValueError(f"Unexpected Trakt response for {target.label}.")
+    ids = movie.get("ids") or {}
     if ids.get("trakt") != target.trakt_id or ids.get("slug") != target.trakt_slug:
         raise ValueError(f"Trakt ID and slug disagree for {target.label}.")
     if movie.get("title") != target.trakt_title or movie.get("year") != target.trakt_year:
@@ -159,15 +164,34 @@ def build_payload(
 
 
 def confirm_send() -> bool:
-    return input("Add these movies to your Trakt collection? (y/n) ").strip().lower() == "y"
+    try:
+        answer = input("Add these movies to your Trakt collection? (y/n) ")
+    except EOFError:
+        return False
+    return answer.strip().lower() == "y"
+
+
+def send_batches(payload: dict[str, list[dict[str, Any]]]) -> int:
+    """Send the payload in Trakt-sized requests and return the reported added count."""
+    movies = payload["movies"]
+    batch_count = (len(movies) + BATCH_SIZE - 1) // BATCH_SIZE
+    added = 0
+    for index in range(batch_count):
+        chunk = movies[index * BATCH_SIZE : (index + 1) * BATCH_SIZE]
+        result = trakt._request_with_refresh(  # pylint: disable=protected-access
+            "POST", "/sync/collection", json={"movies": chunk}
+        ).json()
+        counts = result.get("added") if isinstance(result, dict) else None
+        batch_added = counts.get("movies", 0) if isinstance(counts, dict) else 0
+        added += batch_added if isinstance(batch_added, int) else 0
+        print(f"Sent batch {index + 1} of {batch_count} ({len(chunk)} movies).")
+    return added
 
 
 def run(args: argparse.Namespace) -> bool:
     if args.force and not args.commit:
         raise ValueError("--force requires --commit.")
     targets = load_targets(args.input)
-    if len(targets) > 100:
-        raise ValueError("Trakt accepts at most 100 movies per collection request.")
 
     for target in targets:
         fetch_movie(target)
@@ -196,10 +220,7 @@ def run(args: argparse.Namespace) -> bool:
         print("Cancelled; nothing was sent.")
         return True
 
-    response = trakt._request_with_refresh(  # pylint: disable=protected-access
-        "POST", "/sync/collection", json=payload
-    ).json()
-    added = response.get("added", {}).get("movies", 0)
+    added = send_batches(payload)
     print(f"Trakt reported {added} movies added.")
     verified_ids = fetch_collection_ids()
     missing = [target.label for target in targets if target.trakt_id not in verified_ids]

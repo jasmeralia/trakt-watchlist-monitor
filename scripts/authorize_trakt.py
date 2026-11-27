@@ -117,7 +117,7 @@ def authorize(env_path: Path = ENV_PATH) -> None:
 def main() -> None:
     try:
         authorize()
-    except (OSError, requests.RequestException, KeyError, ValueError, TimeoutError) as exc:
+    except (OSError, requests.RequestException, KeyError, ValueError, RuntimeError) as exc:
         print(f"Authorization failed: {exc}", file=sys.stderr)
         sys.exit(1)
 
